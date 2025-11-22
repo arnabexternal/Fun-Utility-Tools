@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gym Bandit – Workout Slot Machine</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Pixel / arcade fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-dark: #050414;
+      --grid: rgba(160, 160, 255, 0.1);
+      --neon-cyan: #00f5ff;
+      --neon-magenta: #ff00ff;
+      --neon-purple: #b000ff;
+      --neon-yellow: #ffe66d;
+      --panel-bg: rgba(9, 8, 30, 0.9);
+      --text-main: #f9f9ff;
+      --text-soft: #a5a6ff;
+      --danger: #ff4b81;
+      --success: #7CFC00;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Share Tech Mono", monospace;
+      color: var(--text-main);
+      background:
+        radial-gradient(circle at top, #3b0fff 0, transparent 50%),
+        radial-gradient(circle at bottom, #ff00aa44 0, transparent 55%),
+        linear-gradient(135deg, #050414, #07051d 40%, #030008 100%);
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Retro grid overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 50px 50px;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: -1;
+      transform: perspective(600px) rotateX(65deg) translateY(30%);
+      transform-origin: top;
+    }
+
+    .scanlines {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(
+        rgba(0,0,0,0) 50%,
+        rgba(0,0,0,0.4) 50%
+      );
+      background-size: 100% 2px;
+      mix-blend-mode: soft-light;
+      opacity: 0.4;
+      z-index: 100;
+    }
+
+    .wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      font-family: "Press Start 2P", system-ui;
+      font-size: clamp(20px, 4vw, 32px);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--neon-cyan);
+      text-shadow:
+        0 0 6px rgba(0, 245, 255, 0.8),
+        0 0 16px rgba(0, 245, 255, 0.6),
+        0 0 32px rgba(255, 0, 255, 0.5);
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: var(--text-soft);
+      font-size: 14px;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+      gap: 20px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .panel {
+      background: radial-gradient(circle at top left, #28145b 0, #08041a 60%);
+      background-color: var(--panel-bg);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 20px rgba(0, 0, 0, 0.7),
+        0 0 35px rgba(0, 245, 255, 0.12);
+      padding: 18px 16px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      border: 1px solid transparent;
+      background: radial-gradient(circle at top left,
+        rgba(0, 245, 255, 0.35),
+        rgba(255, 0, 255, 0.1),
+        transparent 60%);
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      padding: 1px;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--neon-yellow);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title span {
+      height: 1px;
+      flex: 1;
+      background: linear-gradient(90deg, var(--neon-yellow), transparent);
+    }
+
+    /* Slot machine core */
+
+    .slot-machine {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .reels-frame {
+      position: relative;
+      border-radius: 14px;
+      padding: 10px;
+      border: 2px solid rgba(0, 245, 255, 0.8);
+      box-shadow:
+        0 0 15px rgba(0, 245, 255, 0.5),
+        inset 0 0 15px rgba(0, 0, 20, 0.9);
+      background:
+        radial-gradient(circle at top, rgba(0, 245, 255, 0.1), transparent 55%),
+        linear-gradient(145deg, #04020c, #060014);
+    }
+
+    .reel-labels {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-soft);
+      margin-bottom: 5px;
+    }
+
+    .reel-labels span {
+      text-align: center;
+    }
+
+    .reels {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .reel {
+      position: relative;
+      height: 70px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background:
+        radial-gradient(circle at top, rgba(176, 0, 255, 0.2), transparent 60%),
+        linear-gradient(180deg, #120220, #05000c);
+      box-shadow:
+        0 0 10px rgba(255, 0, 255, 0.4),
+        inset 0 0 8px rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reel-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 6px;
+      row-gap: 6px;
+      transform: translateY(0);
+      transition: transform 0.2s ease-out;
+    }
+
+    .reel-exercise {
+      font-family: "Press Start 2P", system-ui;
+      font-size: 9px;
+      line-height: 1.3;
+      text-shadow:
+        0 0 6px rgba(255, 255, 255, 0.7),
+        0 0 14px rgba(0, 245, 255, 0.8);
+      color: #ffffff;
+    }
+
+    .reel-tag {
+      font-size: 9px;
+      color: var(--neon-yellow);
+      text-transform: uppercase;
+    }
+
+    .reel.spinning .reel-inner {
+      animation: reel-spin 200ms linear infinite;
+      filter: blur(0px 6px);
+    }
+
+    @keyframes reel-spin {
+      0% {
+        transform: translateY(-20%);
+      }
+      50% {
+        transform: translateY(20%);
+      }
+      100% {
+        transform: translateY(-20%);
+      }
+    }
+
+    .slot-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--neon-cyan);
+    }
+
+    .indicator-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow:
+        0 0 6px rgba(124, 252, 0, 0.8),
+        0 0 15px rgba(124, 252, 0, 0.7);
+    }
+
+    /* Controls */
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .equipment-heading {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--neon-magenta);
+      letter-spacing: 1px;
+    }
+
+    .equipment-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .equipment-option {
+      position: relative;
+    }
+
+    .equipment-option input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .equipment-chip {
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px dashed rgba(255, 255, 255, 0.3);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-soft);
+      background: radial-gradient(circle at top, rgba(0, 245, 255, 0.08), transparent 60%);
+      transition: all 0.16s ease-out;
+    }
+
+    .equipment-option input:checked + .equipment-chip {
+      border-style: solid;
+      border-color: var(--neon-magenta);
+      color: #ffffff;
+      box-shadow:
+        0 0 10px rgba(255, 0, 255, 0.7),
+        0 0 22px rgba(0, 245, 255, 0.4);
+      background:
+        radial-gradient(circle at top, rgba(255, 0, 255, 0.16), transparent 60%),
+        linear-gradient(135deg, rgba(10, 0, 40, 0.9), rgba(30, 0, 70, 0.9));
+    }
+
+    .spin-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .spin-btn {
+      flex-shrink: 0;
+      position: relative;
+      font-family: "Press Start 2P", system-ui;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 11px 18px 12px;
+      border-radius: 999px;
+      border: none;
+      color: #05000b;
+      background: radial-gradient(circle at top, #ffe66d 0, #ff00ff 40%, #4900ff 100%);
+      box-shadow:
+        0 0 10px rgba(255, 255, 255, 0.9),
+        0 0 25px rgba(255, 0, 255, 0.7);
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+    }
+
+    .spin-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg,
+        rgba(255, 255, 255, 0.6),
+        transparent 40%,
+        transparent 60%,
+        rgba(255, 255, 255, 0.6));
+      mix-blend-mode: screen;
+      opacity: 0;
+      transform: translateX(-100%);
+      transition: opacity 0.25s, transform 0.25s;
+    }
+
+    .spin-btn:hover::before {
+      opacity: 1;
+      transform: translateX(100%);
+    }
+
+    .spin-btn:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow:
+        0 0 10px rgba(255, 255, 255, 0.9),
+        0 0 32px rgba(255, 0, 255, 0.9);
+    }
+
+    .spin-btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow:
+        0 0 6px rgba(255, 255, 255, 0.8),
+        0 0 18px rgba(255, 0, 255, 0.6);
+    }
+
+    .spin-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .status-text {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .status-text strong {
+      color: var(--neon-cyan);
+    }
+
+    .error-text {
+      color: var(--danger);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    /* Workout details / insights */
+
+    .workout-meta {
+      margin-top: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--text-soft);
+    }
+
+    .workout-meta strong {
+      color: var(--neon-yellow);
+    }
+
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .tag {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: radial-gradient(circle at top, rgba(0, 245, 255, 0.16), transparent 60%);
+      color: var(--text-main);
+    }
+
+    /* Right side: explainer */
+
+    .explain-block {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-soft);
+      margin-bottom: 14px;
+    }
+
+    .explain-block p + p {
+      margin-top: 8px;
+    }
+
+    .bullets {
+      margin-top: 6px;
+      margin-left: 14px;
+    }
+
+    .bullets li {
+      margin-bottom: 4px;
+    }
+
+    .mini-heading {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--neon-cyan);
+      letter-spacing: 1px;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+
+    footer {
+      margin-top: 26px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-soft);
+      opacity: 0.8;
+    }
+
+    footer span {
+      color: var(--neon-magenta);
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <div class="wrapper">
+    <header>
+      <div class="logo">Gym Bandit</div>
+      <p class="subtitle">
+        Beat boredom and decision fatigue with a retro workout slot machine.
+        Hit <strong>SPIN</strong> to receive a curated full-body routine in seconds.
+      </p>
+    </header>
+
+    <main class="layout">
+      <!-- Left: Slot Machine -->
+      <section class="panel">
+        <div class="panel-title">
+          <span></span>
+          WORKOUT SLOT MACHINE
+          <span></span>
+        </div>
+
+        <div class="slot-machine">
+          <div class="reels-frame">
+            <div class="reel-labels">
+              <span>Push</span>
+              <span>Pull</span>
+              <span>Legs</span>
+              <span>Core</span>
+            </div>
+            <div class="reels">
+              <div class="reel" data-category="push">
+                <div class="reel-inner">
+                  <div class="reel-exercise">Push-Up</div>
+                  <div class="reel-tag">Bodyweight</div>
+                </div>
+              </div>
+              <div class="reel" data-category="pull">
+                <div class="reel-inner">
+                  <div class="reel-exercise">Inverted Row</div>
+                  <div class="reel-tag">Bodyweight</div>
+                </div>
+              </div>
+              <div class="reel" data-category="legs">
+                <div class="reel-inner">
+                  <div class="reel-exercise">Squat</div>
+                  <div class="reel-tag">Bodyweight</div>
+                </div>
+              </div>
+              <div class="reel" data-category="core">
+                <div class="reel-inner">
+                  <div class="reel-exercise">Plank</div>
+                  <div class="reel-tag">Bodyweight</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="slot-footer">
+              <div class="hint">
+                Every spin gives a full-body combo: one <strong>Push</strong>, <strong>Pull</strong>, <strong>Legs</strong>, and <strong>Core</strong>.
+              </div>
+              <div class="pill">
+                <div class="indicator-dot"></div>
+                RNG: Curated, not chaos
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div>
+              <div class="equipment-heading">Equipment filter (saved automatically)</div>
+              <div class="equipment-options">
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="no-equipment">
+                  <span class="equipment-chip">No Equipment</span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="dumbbells-only">
+                  <span class="equipment-chip">Dumbbells Only</span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="full-gym">
+                  <span class="equipment-chip">Full Gym</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="spin-row">
+              <button class="spin-btn" id="spinButton">
+                Spin &amp; Deal
+              </button>
+              <div class="status-text" id="statusText">
+                Ready to roll. <strong>Tip:</strong> Switch equipment to reshape your workout.
+              </div>
+            </div>
+
+            <div class="error-text" id="errorText" style="display:none;"></div>
+
+            <div class="workout-meta" id="workoutMeta">
+              Hit <strong>SPIN</strong> to generate today’s heist:
+              <span class="tags-row">
+                <span class="tag">3 Rounds</span>
+                <span class="tag">8–12 Reps Push/Pull/Legs</span>
+                <span class="tag">30–45s Core</span>
+                <span class="tag">Rest 45–75s</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Explanations / Insights -->
+      <section class="panel">
+        <div class="panel-title">
+          <span></span>
+          HOW IT WORKS
+          <span></span>
+        </div>
+
+        <div class="explain-block">
+          <p>
+            The two enemies of consistency are <strong>boredom</strong> and
+            <strong>decision fatigue</strong>. Gym Bandit steals the cognitive load:
+            you just <em>show up</em> and hit SPIN.
+          </p>
+          <p class="mini-heading">Curated slots, not chaos</p>
+          <ul class="bullets">
+            <li><strong>Reel 1 – Push:</strong> Push-ups, Dips, Overhead Press variations.</li>
+            <li><strong>Reel 2 – Pull:</strong> Rows, Pull-ups, Curls.</li>
+            <li><strong>Reel 3 – Legs:</strong> Squats, Lunges &amp; friends.</li>
+            <li><strong>Reel 4 – Core:</strong> Planks, Crunch variations.</li>
+          </ul>
+
+          <p class="mini-heading">Equipment-aware randomness</p>
+          <p>
+            Toggle <strong>No Equipment</strong>, <strong>Dumbbells Only</strong>,
+            or <strong>Full Gym</strong>. Your choice is saved with
+            <code>localStorage</code>, and the Bandit only deals exercises that
+            match your setup.
+          </p>
+
+          <p class="mini-heading">Novelty as motivation</p>
+          <p>
+            Tiny twists like “Reverse Lunge” vs “Walking Lunge” keep your brain
+            interested and your muscles guessing—without wrecking structure.
+          </p>
+
+          <p class="mini-heading">Suggested use</p>
+          <ul class="bullets">
+            <li>Run the 4 moves as a circuit for 3–5 rounds.</li>
+            <li>Log your favourites, reroll when a combo feels stale.</li>
+            <li>On low-motivation days, tell yourself: “I only have to hit SPIN.”</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Gym Bandit • <span>Retro RNG for real gains</span> • Spin responsibly.
+    </footer>
+  </div>
+
+  <script>
+    // --- Exercise catalogue with equipment tags ---
+    // equipment: 'bodyweight', 'dumbbell', 'barbell', 'machine', 'band', 'kettlebell'
+    const EXERCISES = {
+      push: [
+        { name: "Classic Push-Up", equipment: ["bodyweight"] },
+        { name: "Incline Push-Up", equipment: ["bodyweight"] },
+        { name: "Decline Push-Up", equipment: ["bodyweight"] },
+        { name: "Bench Dips", equipment: ["bodyweight"] },
+        { name: "Parallel Bar Dips", equipment: ["bodyweight", "machine"] },
+        { name: "Dumbbell Overhead Press", equipment: ["dumbbell"] },
+        { name: "Seated Dumbbell Shoulder Press", equipment: ["dumbbell"] },
+        { name: "Barbell Overhead Press", equipment: ["barbell"] },
+        { name: "Machine Chest Press", equipment: ["machine"] }
+      ],
+      pull: [
+        { name: "Inverted Row", equipment: ["bodyweight"] },
+        { name: "Towel Doorway Row", equipment: ["bodyweight"] },
+        { name: "Band Lat Pulldown", equipment: ["band"] },
+        { name: "Dumbbell Bent-Over Row", equipment: ["dumbbell"] },
+        { name: "Single-Arm Dumbbell Row", equipment: ["dumbbell"] },
+        { name: "Barbell Bent-Over Row", equipment: ["barbell"] },
+        { name: "Assisted Pull-Up", equipment: ["machine"] },
+        { name: "Strict Pull-Up", equipment: ["bodyweight", "machine"] },
+        { name: "Hammer Curl", equipment: ["dumbbell"] },
+        { name: "EZ-Bar Curl", equipment: ["barbell"] }
+      ],
+      legs: [
+        { name: "Bodyweight Squat", equipment: ["bodyweight"] },
+        { name: "Reverse Lunge", equipment: ["bodyweight"] },
+        { name: "Walking Lunge", equipment: ["bodyweight"] },
+        { name: "Split Squat", equipment: ["bodyweight"] },
+        { name: "Goblet Squat", equipment: ["dumbbell"] },
+        { name: "Dumbbell Romanian Deadlift", equipment: ["dumbbell"] },
+        { name: "Barbell Back Squat", equipment: ["barbell"] },
+        { name: "Barbell Romanian Deadlift", equipment: ["barbell"] },
+        { name: "Leg Press", equipment: ["machine"] },
+        { name: "Kettlebell Swing", equipment: ["kettlebell"] }
+      ],
+      core: [
+        { name: "Forearm Plank", equipment: ["bodyweight"] },
+        { name: "Side Plank (each side)", equipment: ["bodyweight"] },
+        { name: "Dead Bug", equipment: ["bodyweight"] },
+        { name: "Hollow Body Hold", equipment: ["bodyweight"] },
+        { name: "Crunches", equipment: ["bodyweight"] },
+        { name: "Bicycle Crunch", equipment: ["bodyweight"] },
+        { name: "Hanging Knee Raise", equipment: ["machine"] },
+        { name: "Cable Woodchop", equipment: ["machine"] }
+      ]
+    };
+
+    // Equipment modes and allowed tags
+    const EQUIPMENT_MODES = {
+      "no-equipment": ["bodyweight"],
+      "dumbbells-only": ["bodyweight", "dumbbell"],
+      "full-gym": ["bodyweight", "dumbbell", "barbell", "machine", "band", "kettlebell"]
+    };
+
+    const STORAGE_KEY = "gymBanditEquipmentMode";
+
+    const spinButton = document.getElementById("spinButton");
+    const statusText = document.getElementById("statusText");
+    const errorText = document.getElementById("errorText");
+    const workoutMeta = document.getElementById("workoutMeta");
+    const reels = Array.from(document.querySelectorAll(".reel"));
+    const equipmentInputs = Array.from(document.querySelectorAll("input[name='equipment']"));
+
+    // --- Local storage: load & apply saved equipment mode ---
+    function getSavedMode() {
+      const fromStorage = window.localStorage.getItem(STORAGE_KEY);
+      if (fromStorage && EQUIPMENT_MODES[fromStorage]) {
+        return fromStorage;
+      }
+      // default mode if nothing saved
+      return "no-equipment";
+    }
+
+    function saveMode(mode) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, mode);
+      } catch (e) {
+        // In case storage is blocked, fail silently
+      }
+    }
+
+    function applyModeToUI(mode) {
+      equipmentInputs.forEach(input => {
+        input.checked = input.value === mode;
+      });
+
+      let modeLabel = "";
+      if (mode === "no-equipment") modeLabel = "No Equipment – bodyweight heist only.";
+      if (mode === "dumbbells-only") modeLabel = "Dumbbells Only – Bandit uses dumbbells & bodyweight.";
+      if (mode === "full-gym") modeLabel = "Full Gym – every toy in the vault is fair game.";
+
+      statusText.innerHTML = `Mode locked: <strong>${modeLabel}</strong>`;
+    }
+
+    // Filter exercises by equipment mode
+    function filterExercises(list, mode) {
+      const allowedTags = EQUIPMENT_MODES[mode];
+      const filtered = list.filter(ex =>
+        ex.equipment.some(tag => allowedTags.includes(tag))
+      );
+      // If filter is too strict (shouldn't happen with our setup), fall back to full list
+      return filtered.length > 0 ? filtered : list;
+    }
+
+    function pickRandom(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function spinReels() {
+      const currentMode = equipmentInputs.find(i => i.checked)?.value || getSavedMode();
+
+      errorText.style.display = "none";
+      errorText.textContent = "";
+
+      // Build curated random workout
+      const pushOptions = filterExercises(EXERCISES.push, currentMode);
+      const pullOptions = filterExercises(EXERCISES.pull, currentMode);
+      const legOptions = filterExercises(EXERCISES.legs, currentMode);
+      const coreOptions = filterExercises(EXERCISES.core, currentMode);
+
+      const workout = {
+        push: pickRandom(pushOptions),
+        pull: pickRandom(pullOptions),
+        legs: pickRandom(legOptions),
+        core: pickRandom(coreOptions)
+      };
+
+      // Spin animation – brief blur & vertical motion
+      spinButton.disabled = true;
+      statusText.innerHTML = `Spinning... <strong>Let fate pick your gains.</strong>`;
+
+      reels.forEach(reel => {
+        reel.classList.add("spinning");
+      });
+
+      // After a short delay, "land" each reel one-by-one
+      const baseDuration = 800; // ms
+      reels.forEach((reel, index) => {
+        const category = reel.dataset.category;
+        const inner = reel.querySelector(".reel-inner");
+
+        setTimeout(() => {
+          // Stop spinning for this reel
+          reel.classList.remove("spinning");
+
+          const picked = workout[category];
+
+          inner.innerHTML = "";
+          const titleDiv = document.createElement("div");
+          titleDiv.className = "reel-exercise";
+          titleDiv.textContent = picked.name;
+
+          const tagDiv = document.createElement("div");
+          tagDiv.className = "reel-tag";
+          tagDiv.textContent = picked.equipment.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(" / ");
+
+          inner.appendChild(titleDiv);
+          inner.appendChild(tagDiv);
+        }, baseDuration + index * 170);
+      });
+
+      // Re-enable button & update meta after the last reel lands
+      const totalDuration = baseDuration + (reels.length - 1) * 170 + 50;
+
+      setTimeout(() => {
+        spinButton.disabled = false;
+        statusText.innerHTML = `Heist planned. <strong>Run 3–5 rounds</strong> or reroll for a fresh combo.`;
+
+        updateWorkoutMeta(workout, currentMode);
+      }, totalDuration);
+    }
+
+    function updateWorkoutMeta(workout, mode) {
+      const modeLabel =
+        mode === "no-equipment" ? "No Equipment" :
+        mode === "dumbbells-only" ? "Dumbbells Only" :
+        "Full Gym";
+
+      workoutMeta.innerHTML = `
+        Today's haul (<strong>${modeLabel}</strong>):<br>
+        <strong>Push:</strong> ${workout.push.name}<br>
+        <strong>Pull:</strong> ${workout.pull.name}<br>
+        <strong>Legs:</strong> ${workout.legs.name}<br>
+        <strong>Core:</strong> ${workout.core.name}
+        <div class="tags-row">
+          <div class="tag">3–5 Rounds</div>
+          <div class="tag">8–12 reps for Push / Pull / Legs</div>
+          <div class="tag">30–45s for Core</div>
+          <div class="tag">Rest 45–75s between rounds</div>
+          <div class="tag">Option: Reroll if bored</div>
+        </div>
+      `;
+    }
+
+    // --- Event wiring ---
+    spinButton.addEventListener("click", spinReels);
+
+    equipmentInputs.forEach(input => {
+      input.addEventListener("change", () => {
+        if (!EQUIPMENT_MODES[input.value]) return;
+
+        saveMode(input.value);
+        applyModeToUI(input.value);
+
+        // tiny feedback
+        errorText.style.display = "none";
+        errorText.textContent = "";
+      });
+    });
+
+    // --- Initialisation ---
+    (function init() {
+      const mode = getSavedMode();
+      applyModeToUI(mode);
+
+      // Ensure radio state matches storage
+      equipmentInputs.forEach(input => {
+        input.checked = input.value === mode;
+      });
+    })();
+  </script>
+</body>
+</html>

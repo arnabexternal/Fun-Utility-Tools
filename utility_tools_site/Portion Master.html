@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Portion Master – Visual Recipe Scaler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.16);
+      --glass-border: rgba(255, 255, 255, 0.55);
+      --glass-shadow: 0 18px 60px rgba(15, 23, 42, 0.7);
+      --accent-neutral: #facc15;
+      --accent-up: #fb923c;
+      --accent-down: #4ade80;
+      --text-main: #f9fafb;
+      --text-soft: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--text-main);
+      background: #020617;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism background: gradient + food photo */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background-image:
+        linear-gradient(135deg, rgba(15, 23, 42, 0.5), rgba(56, 189, 248, 0.35), rgba(239, 68, 68, 0.35)),
+        url("https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=1600");
+      background-size: cover;
+      background-position: center;
+      filter: saturate(1.25) contrast(1.05);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(248, 250, 252, 0.45), transparent 55%),
+        radial-gradient(circle at 90% 100%, rgba(251, 113, 133, 0.5), transparent 55%),
+        radial-gradient(circle at 0% 100%, rgba(56, 189, 248, 0.4), transparent 55%);
+      mix-blend-mode: screen;
+      pointer-events: none;
+    }
+
+    main.app {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 16px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .glass-card {
+      background: var(--glass-bg);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      padding: 16px 20px;
+    }
+
+    .app-header {
+      text-align: center;
+      padding: 18px 20px 20px;
+    }
+
+    .app-header h1 {
+      margin: 0 0 6px;
+      font-size: 2rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .app-header p {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--text-soft);
+    }
+
+    .slider-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .servings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .servings-row label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .servings-row input[type="number"] {
+      width: 80px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(248, 250, 252, 0.45);
+      background: rgba(15, 23, 42, 0.5);
+      color: var(--text-main);
+      outline: none;
+    }
+
+    .servings-row input[type="number"]::-webkit-inner-spin-button,
+    .servings-row input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .current-servings {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-size: 0.9rem;
+    }
+
+    #currentServingsLabel {
+      opacity: 0.9;
+    }
+
+    .scale-badge {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(248, 250, 252, 0.7);
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    .slider-card input[type="range"] {
+      width: 100%;
+      margin-top: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.6);
+      outline: none;
+      accent-color: var(--accent-neutral);
+    }
+
+    .slider-card.scale-up input[type="range"] {
+      accent-color: var(--accent-up);
+    }
+
+    .slider-card.scale-down input[type="range"] {
+      accent-color: var(--accent-down);
+    }
+
+    .slider-card.scale-same input[type="range"] {
+      accent-color: var(--accent-neutral);
+    }
+
+    .slider-card input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #f9fafb;
+      box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.35);
+      cursor: pointer;
+      border: none;
+    }
+
+    .slider-card input[type="range"]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #f9fafb;
+      box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.35);
+      cursor: pointer;
+      border: none;
+    }
+
+    .slider-card input[type="range"]::-webkit-slider-runnable-track,
+    .slider-card input[type="range"]::-moz-range-track {
+      height: 6px;
+      border-radius: 999px;
+      background: transparent;
+    }
+
+    .scale-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-soft);
+    }
+
+    .scale-meta strong {
+      color: var(--text-main);
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    button {
+      font-family: inherit;
+    }
+
+    .primary-btn,
+    #sampleButton {
+      border-radius: 999px;
+      border: none;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.9);
+      color: #f9fafb;
+      border: 1px solid rgba(248, 250, 252, 0.7);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .primary-btn:hover,
+    #sampleButton:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.7);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    #recipeInput {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      margin: 4px 0 10px;
+      padding: 10px 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(248, 250, 252, 0.5);
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--text-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    #recipeInput::placeholder {
+      color: rgba(226, 232, 240, 0.85);
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      font-size: 0.75rem;
+      color: rgba(226, 232, 240, 0.92);
+    }
+
+    .output-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ingredients {
+      list-style: none;
+      margin: 6px 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .ingredient-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 6px 9px;
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(248, 250, 252, 0.2);
+      font-size: 0.9rem;
+    }
+
+    .ingredient-row .quantity {
+      min-width: 56px;
+      font-weight: 600;
+    }
+
+    .ingredient-row .unit {
+      opacity: 0.9;
+    }
+
+    .ingredient-row .name {
+      color: var(--text-soft);
+    }
+
+    .app-footer {
+      font-size: 0.8rem;
+      color: rgba(226, 232, 240, 0.94);
+      text-align: center;
+    }
+
+    @media (max-width: 840px) {
+      main.app {
+        padding-top: 20px;
+      }
+
+      .content-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app-header h1 {
+        font-size: 1.6rem;
+      }
+
+      .slider-card {
+        padding: 14px 14px;
+      }
+
+      .servings-row {
+        align-items: flex-start;
+      }
+
+      .current-servings {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="app-header glass-card">
+      <h1>Portion Master</h1>
+      <p>Visual recipe scaler so you never do panicked kitchen math again.</p>
+    </header>
+
+    <section class="slider-card glass-card scale-same" id="sliderCard">
+      <div class="servings-row">
+        <label>
+          Base servings
+          <input type="number" id="baseServings" value="4" min="1" />
+        </label>
+        <div class="current-servings">
+          <span id="currentServingsLabel">Current servings: <strong id="currentServingsValue">4</strong></span>
+          <span class="scale-badge" id="scaleBadge">Original size</span>
+        </div>
+      </div>
+      <input type="range" id="servingSlider" min="1" max="16" value="4" />
+      <div class="scale-meta">
+        <span>Scale factor: <strong id="scaleFactor">×1</strong></span>
+        <span id="scaleHint">Perfect match for the original recipe.</span>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <div class="glass-card input-card">
+        <div class="card-header">
+          <h2>1. Paste your recipe</h2>
+          <button type="button" id="sampleButton">Load sample</button>
+        </div>
+        <textarea id="recipeInput" placeholder="Example:
+2 cups flour
+1.5 tbsp sugar
+1/2 cup milk
+2 eggs"></textarea>
+        <button type="button" id="parseButton" class="primary-btn">Parse recipe</button>
+        <p class="hint">Tip: each ingredient should be on its own line, starting with a number. Fractions like 1/2 or 3/4 work too.</p>
+      </div>
+
+      <div class="glass-card output-card">
+        <h2>2. Scaled ingredients</h2>
+        <ul id="ingredientList" class="ingredients"></ul>
+        <p class="hint">Drag the slider to match how many people you're feeding or how many ingredients you actually have on hand.</p>
+      </div>
+    </section>
+
+    <footer class="app-footer glass-card">
+      <p>Accurate scaling = less food waste, happier wallets, and more delicious experiments in your kitchen.</p>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      const baseServingsInput = document.getElementById('baseServings');
+      const slider = document.getElementById('servingSlider');
+      const sliderCard = document.getElementById('sliderCard');
+      const currentServingsValue = document.getElementById('currentServingsValue');
+      const scaleFactorEl = document.getElementById('scaleFactor');
+      const scaleBadge = document.getElementById('scaleBadge');
+      const scaleHint = document.getElementById('scaleHint');
+      const recipeInput = document.getElementById('recipeInput');
+      const parseButton = document.getElementById('parseButton');
+      const sampleButton = document.getElementById('sampleButton');
+      const ingredientList = document.getElementById('ingredientList');
+
+      const linePattern = /^(\d+[\/\.]?\d*)\s*([a-zA-Z]+)?\s*(.*)/;
+
+      let baseServings = parseInt(baseServingsInput.value, 10) || 4;
+      let ingredients = [];
+
+      function parseQuantity(raw) {
+        if (!raw) return NaN;
+        raw = raw.trim();
+        if (raw.includes('/')) {
+          const parts = raw.split('/');
+          const numerator = parseFloat(parts[0].replace(/[^\d.]/g, ''));
+          const denominator = parseFloat(parts[1].replace(/[^\d.]/g, '')) || 1;
+          if (isNaN(numerator) || isNaN(denominator) || denominator === 0) return NaN;
+          return numerator / denominator;
+        }
+        const asNumber = parseFloat(raw.replace(/[^\d.]/g, ''));
+        return isNaN(asNumber) ? NaN : asNumber;
+      }
+
+      function isCountIngredient(unit, name) {
+        const unitNorm = (unit || '').toLowerCase();
+        const nameNorm = (name || '').toLowerCase();
+        const countUnits = ['', 'piece', 'pieces', 'pc', 'pcs'];
+        const countKeywords = ['egg', 'clove', 'onion', 'tomato', 'chilli', 'chili', 'potato', 'burger', 'slice'];
+        if (countUnits.includes(unitNorm)) return true;
+        return countKeywords.some(function (k) { return nameNorm.includes(k); });
+      }
+
+      function convertUnits(quantity, unit) {
+        if (!unit) return { quantity: quantity, unit: '' };
+        const u = unit.toLowerCase();
+        let q = quantity;
+        let newUnit = unit;
+
+        if (['tbsp', 'tablespoon', 'tablespoons'].includes(u) && q >= 16) {
+          q = q / 16;
+          newUnit = 'cup';
+        } else if (['tsp', 'teaspoon', 'teaspoons'].includes(u) && q >= 3) {
+          q = q / 3;
+          newUnit = 'tbsp';
+        } else if (['ml'].includes(u) && q >= 1000) {
+          q = q / 1000;
+          newUnit = 'l';
+        } else if (['g', 'gram', 'grams'].includes(u) && q >= 1000) {
+          q = q / 1000;
+          newUnit = 'kg';
+        }
+
+        return { quantity: q, unit: newUnit };
+      }
+
+      function decimalToFraction(value) {
+        const whole = Math.floor(value);
+        let frac = value - whole;
+
+        const epsilon = 0.05;
+        const denominators = [2, 3, 4, 8];
+
+        let bestNumerator = 0;
+        let bestDenominator = 1;
+        let bestError = Number.MAX_VALUE;
+
+        denominators.forEach(function (d) {
+          const n = Math.round(frac * d);
+          const approx = n / d;
+          const error = Math.abs(frac - approx);
+          if (error < bestError && n !== 0) {
+            bestError = error;
+            bestNumerator = n;
+            bestDenominator = d;
+          }
+        });
+
+        if (bestError < epsilon && bestNumerator !== 0) {
+          if (whole === 0) {
+            return bestNumerator + '/' + bestDenominator;
+          }
+          return whole + ' ' + bestNumerator + '/' + bestDenominator;
+        }
+
+        // fall back to decimal rounded to 2 places
+        return value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+      }
+
+      function formatQuantity(qty, unit, name) {
+        if (!isFinite(qty)) return { quantityText: '', unitText: unit || '' };
+        if (qty === 0) return { quantityText: '0', unitText: unit || '' };
+
+        const countItem = isCountIngredient(unit, name);
+
+        let value = qty;
+        if (countItem) {
+          // Round count items (like eggs) to the nearest half
+          value = Math.round(qty * 2) / 2;
+        }
+
+        const converted = convertUnits(value, unit);
+        value = converted.quantity;
+        const displayUnit = converted.unit;
+
+        const display = decimalToFraction(value);
+        return { quantityText: display, unitText: displayUnit };
+      }
+
+      function clearIngredients() {
+        ingredients = [];
+        ingredientList.innerHTML = '';
+      }
+
+      function addIngredientLine(line) {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        const match = trimmed.match(linePattern);
+        const li = document.createElement('li');
+        li.className = 'ingredient-row';
+
+        if (!match) {
+          li.textContent = trimmed;
+          ingredientList.appendChild(li);
+          return;
+        }
+
+        const quantityRaw = match[1];
+        const unitRaw = match[2] || '';
+        const nameRaw = match[3] || '';
+
+        const baseQuantity = parseQuantity(quantityRaw);
+
+        if (!isFinite(baseQuantity)) {
+          li.textContent = trimmed;
+          ingredientList.appendChild(li);
+          return;
+        }
+
+        const quantitySpan = document.createElement('span');
+        quantitySpan.className = 'quantity';
+
+        const unitSpan = document.createElement('span');
+        unitSpan.className = 'unit';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'name';
+
+        const formatted = formatQuantity(baseQuantity, unitRaw, nameRaw);
+        quantitySpan.textContent = formatted.quantityText;
+        unitSpan.textContent = formatted.unitText ? formatted.unitText + ' ' : '';
+        nameSpan.textContent = nameRaw;
+
+        li.appendChild(quantitySpan);
+        li.appendChild(unitSpan);
+        li.appendChild(nameSpan);
+
+        ingredientList.appendChild(li);
+
+        ingredients.push({
+          baseQuantity: baseQuantity,
+          unit: unitRaw,
+          name: nameRaw,
+          quantitySpan: quantitySpan,
+          unitSpan: unitSpan
+        });
+      }
+
+      function parseRecipe() {
+        clearIngredients();
+        baseServings = parseInt(baseServingsInput.value, 10) || 1;
+        if (baseServings <= 0) baseServings = 1;
+        baseServingsInput.value = baseServings;
+
+        const text = recipeInput.value || '';
+        const lines = text.split(/\r?\n/).filter(function (line) {
+          return line.trim() !== '';
+        });
+
+        lines.forEach(addIngredientLine);
+        updateScalingUI();
+      }
+
+      function updateScalingUI() {
+        const currentServings = parseInt(slider.value, 10) || 1;
+        currentServingsValue.textContent = String(currentServings);
+
+        const factor = currentServings / (baseServings || 1);
+        const factorRounded = Math.round(factor * 100) / 100;
+        let factorText = '×' + factorRounded.toString();
+        factorText = factorText.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+        scaleFactorEl.textContent = factorText;
+
+        sliderCard.classList.remove('scale-up', 'scale-down', 'scale-same');
+        if (factorRounded > 1.01) {
+          sliderCard.classList.add('scale-up');
+          scaleBadge.textContent = 'Scaling up';
+          scaleHint.textContent = 'Bigger batch – perfect for guests or meal prep.';
+        } else if (factorRounded < 0.99) {
+          sliderCard.classList.add('scale-down');
+          scaleBadge.textContent = 'Scaling down';
+          scaleHint.textContent = 'Smaller batch – great for reducing leftovers.';
+        } else {
+          sliderCard.classList.add('scale-same');
+          scaleBadge.textContent = 'Original size';
+          scaleHint.textContent = 'Perfect match for the original recipe.';
+        }
+
+        ingredients.forEach(function (item) {
+          const scaled = item.baseQuantity * factor;
+          const formatted = formatQuantity(scaled, item.unit, item.name);
+          item.quantitySpan.textContent = formatted.quantityText;
+          item.unitSpan.textContent = formatted.unitText ? formatted.unitText + ' ' : '';
+        });
+      }
+
+      function loadSample() {
+        const sample = [
+          '2 cups flour',
+          '1.5 tbsp sugar',
+          '1/2 cup milk',
+          '2 eggs',
+          '1 tsp vanilla extract',
+          '30 g butter'
+        ].join('\n');
+        recipeInput.value = sample;
+        baseServingsInput.value = 4;
+        baseServings = 4;
+        slider.value = 4;
+        parseRecipe();
+      }
+
+      slider.addEventListener('input', function () {
+        updateScalingUI();
+      });
+
+      baseServingsInput.addEventListener('change', function () {
+        baseServings = parseInt(baseServingsInput.value, 10) || 1;
+        if (baseServings <= 0) baseServings = 1;
+        baseServingsInput.value = baseServings;
+        updateScalingUI();
+      });
+
+      parseButton.addEventListener('click', function () {
+        parseRecipe();
+      });
+
+      sampleButton.addEventListener('click', function () {
+        loadSample();
+      });
+
+      // Initialize with empty state
+      parseRecipe();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tab Splitter – Drag & Drop Bill Adjuster</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        sans-serif;
+      background:
+        radial-gradient(circle at top left, #ffe2b0 0, transparent 55%),
+        radial-gradient(circle at bottom right, #b8fff5 0, transparent 60%),
+        linear-gradient(135deg, #f1ece6, #f8f4ef);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      color: #1b140e;
+    }
+
+    .app {
+      max-width: 1120px;
+      width: 100%;
+      background: #f6f1eb;
+      border-radius: 24px;
+      box-shadow:
+        0 22px 40px rgba(0, 0, 0, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.9);
+      padding: 20px 22px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .app::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background-image:
+        linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.35) 0,
+          rgba(255, 255, 255, 0.05) 40%,
+          rgba(0, 0, 0, 0.05) 41%,
+          transparent 45%,
+          transparent 100%
+        );
+      mix-blend-mode: soft-light;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .app-inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      font-size: 1.7rem;
+      letter-spacing: 0.03em;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-bottom: 12px;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(6px);
+    }
+
+    .chip-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #e1b207;
+    }
+
+    .summary-toggle-btn {
+      border-radius: 999px;
+      border: 0;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1b140e;
+      color: #f6f1eb;
+      box-shadow:
+        0 5px 0 #8b6f4b,
+        0 8px 18px rgba(0, 0, 0, 0.35);
+      transform: translateY(0);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    .summary-toggle-btn span.icon {
+      font-size: 1rem;
+    }
+
+    .summary-toggle-btn:hover {
+      filter: brightness(1.03);
+    }
+
+    .summary-toggle-btn:active {
+      transform: translateY(2px);
+      box-shadow:
+        0 3px 0 #8b6f4b,
+        0 3px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 18px;
+      margin-top: 8px;
+    }
+
+    .column {
+      position: relative;
+      padding: 12px 10px 10px;
+      border-radius: 18px;
+      background: linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.88),
+        rgba(255, 248, 235, 0.98)
+      );
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+        0 12px 26px rgba(0, 0, 0, 0.1);
+    }
+
+    .column-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .column-title small {
+      font-weight: 400;
+      opacity: 0.7;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    form.inline-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) auto;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .field label {
+      opacity: 0.7;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      font: inherit;
+      padding: 7px 8px;
+      border-radius: 11px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: rgba(255, 255, 255, 0.96);
+      outline: none;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease,
+        background 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      border-color: rgba(27, 20, 14, 0.7);
+      box-shadow:
+        0 0 0 1px rgba(27, 20, 14, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.2);
+      background: #ffffff;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      margin: 0;
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: 0;
+      padding: 8px 13px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      background: #f8bf3c;
+      color: #1b140e;
+      font-weight: 600;
+      box-shadow:
+        0 4px 0 #bb8d27,
+        0 8px 16px rgba(0, 0, 0, 0.25);
+      transform: translateY(0);
+      transition: transform 0.15s ease, box-shadow 0.15s ease,
+        filter 0.15s ease;
+    }
+
+    .btn:hover {
+      filter: brightness(1.03);
+    }
+
+    .btn:active {
+      transform: translateY(2px);
+      box-shadow:
+        0 2px 0 #bb8d27,
+        0 3px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .tickets {
+      margin-top: 4px;
+      max-height: 360px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .ticket {
+      position: relative;
+      background: #fffdf6;
+      border-radius: 16px;
+      padding: 8px 10px 9px;
+      margin-bottom: 8px;
+      box-shadow:
+        0 1px 0 #fff,
+        0 5px 10px rgba(0, 0, 0, 0.12);
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.6fr) auto;
+      gap: 8px;
+      align-items: center;
+      cursor: grab;
+      border: 2px solid transparent;
+      background-image: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 9px,
+        rgba(0, 0, 0, 0.02) 10px
+      );
+    }
+
+    .ticket.dragging {
+      opacity: 0.7;
+      transform: translateY(-1px) scale(1.02);
+      cursor: grabbing;
+    }
+
+    .ticket-main {
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .ticket-main small {
+      font-size: 0.68rem;
+      opacity: 0.65;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .ticket-price {
+      text-align: right;
+      font-feature-settings: "tnum" on, "lnum" on;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .ticket-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .delete-item-btn {
+      border: 0;
+      border-radius: 999px;
+      width: 20px;
+      height: 20px;
+      font-size: 0.8rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.06);
+      color: rgba(0, 0, 0, 0.7);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .delete-item-btn:hover {
+      background: rgba(0, 0, 0, 0.14);
+      transform: translateY(1px);
+    }
+
+    .owners-row {
+      grid-column: 1 / -1;
+      margin-top: 3px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 0.7rem;
+      align-items: center;
+    }
+
+    .owners-label {
+      opacity: 0.65;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .owner-chip {
+      --chip-color: #e1b207;
+      border-radius: 999px;
+      border: 0;
+      padding: 3px 8px;
+      font-size: 0.68rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.08),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .owner-chip::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--chip-color);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    }
+
+    .owner-chip::after {
+      content: "×";
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
+    .ticket.has-owners {
+      border-color: rgba(0, 0, 0, 0.12);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.9),
+        0 7px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .ticket-color-band {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      border: 2px solid transparent;
+      mix-blend-mode: multiply;
+      opacity: 0.6;
+    }
+
+    .ticket-color-band.multiple {
+      border-style: dashed;
+    }
+
+    .ticket-empty {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      padding: 6px 2px 2px;
+    }
+
+    .people-section {
+      margin-bottom: 10px;
+    }
+
+    .people-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .person-plate {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: 3px dashed rgba(0, 0, 0, 0.06);
+      background: radial-gradient(circle at 25% 20%, #ffffff, #fff0d9);
+      box-shadow:
+        0 7px 16px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(255, 255, 255, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 6px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease,
+        border-color 0.12s ease, background 0.12s ease;
+    }
+
+    .person-plate::before {
+      content: "";
+      position: absolute;
+      inset: 9px;
+      border-radius: 50%;
+      border: 0 solid var(--plate-ring-color, rgba(0, 0, 0, 0.02));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s ease, border-width 0.12s ease;
+    }
+
+    .person-inner {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #fff, #ffe0bc);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.15;
+    }
+
+    .person-name {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .person-delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 0;
+      background: rgba(0, 0, 0, 0.08);
+      color: rgba(0, 0, 0, 0.75);
+      font-size: 0.9rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+      transition: background 0.12s ease, transform 0.1s ease,
+        box-shadow 0.12s ease;
+    }
+
+    .person-delete-btn:hover {
+      background: rgba(0, 0, 0, 0.16);
+      transform: translateY(1px);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    }
+
+    .person-hint {
+      font-size: 0.72rem;
+      opacity: 0.7;
+      text-align: left;
+      margin-top: 4px;
+    }
+
+    .person-plate.drag-over {
+      transform: translateY(-2px);
+      box-shadow:
+        0 11px 20px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.85);
+      border-color: rgba(0, 0, 0, 0.18);
+      background: radial-gradient(circle at 25% 20%, #ffffff, #ffe7c7);
+    }
+
+    .person-plate.drag-over::before {
+      opacity: 1;
+      border-width: 3px;
+    }
+
+    .meta-section {
+      margin-bottom: 10px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .summary-wrapper {
+      margin-top: 4px;
+    }
+
+    .summary-card {
+      margin-top: 6px;
+      border-radius: 18px;
+      padding: 10px 11px 11px;
+      background: radial-gradient(circle at top left, #1f1027, #08131a);
+      color: #fdf9f4;
+      box-shadow:
+        0 12px 26px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+      font-size: 0.82rem;
+    }
+
+    .summary-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .summary-card-header h3 {
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .summary-card-header small {
+      opacity: 0.8;
+      font-size: 0.75rem;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" on, "lnum" on;
+    }
+
+    .summary-table thead th {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      opacity: 0.7;
+      text-align: right;
+      padding-bottom: 3px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      white-space: nowrap;
+    }
+
+    .summary-table thead th:first-child {
+      text-align: left;
+    }
+
+    .summary-table tbody tr {
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+    }
+
+    .summary-table tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    .summary-table td {
+      padding: 4px 0 3px;
+      text-align: right;
+      vertical-align: middle;
+    }
+
+    .summary-name-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .summary-color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      flex-shrink: 0;
+      box-shadow:
+        0 0 0 2px rgba(0, 0, 0, 0.7),
+        0 0 0 4px rgba(255, 255, 255, 0.12);
+    }
+
+    .summary-total {
+      font-weight: 700;
+    }
+
+    .summary-footer {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.72rem;
+      opacity: 0.8;
+      flex-wrap: wrap;
+    }
+
+    .summary-footer strong {
+      font-weight: 600;
+      opacity: 1;
+    }
+
+    .mini-pill {
+      border-radius: 999px;
+      padding: 2px 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      font-size: 0.7rem;
+    }
+
+    .settlement-list {
+      margin-top: 4px;
+      padding-left: 16px;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
+
+    .settlement-list li {
+      margin-bottom: 2px;
+    }
+
+    .bottom-hint {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      opacity: 0.7;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .bottom-hint span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bottom-hint-code {
+      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 0.68rem;
+      opacity: 0.7;
+    }
+
+    body.summary-only .header-extra,
+    body.summary-only .column.left,
+    body.summary-only .people-section,
+    body.summary-only .meta-section,
+    body.summary-only .bottom-hint span:not(.bottom-hint-code) {
+      display: none !important;
+    }
+
+    body.summary-only .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.summary-only .column.right {
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    body.summary-only .summary-wrapper {
+      margin-top: 0;
+    }
+
+    body.summary-only .summary-card {
+      border-radius: 24px;
+      padding: 12px 14px 14px;
+    }
+
+    body.summary-only .app {
+      max-width: 480px;
+      padding: 16px 14px 14px;
+      border-radius: 26px;
+    }
+
+    body.summary-only .summary-toggle-btn {
+      background: #f8bf3c;
+      color: #1b140e;
+    }
+
+    @media (max-width: 880px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .column {
+        padding: 10px 8px 9px;
+      }
+      form.inline-form {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+        grid-template-rows: auto auto;
+        grid-auto-flow: row;
+      }
+      form.inline-form .btn {
+        grid-column: 1 / -1;
+        justify-self: flex-start;
+      }
+      .people-row {
+        justify-content: flex-start;
+      }
+      .ticket {
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+      }
+      .ticket-meta {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+      }
+      .summary-card {
+        font-size: 0.8rem;
+      }
+      .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .summary-table thead th {
+        font-size: 0.66rem;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding: 14px 11px 12px;
+      }
+      h1 {
+        font-size: 1.45rem;
+      }
+      .summary-card {
+        padding: 10px 9px 11px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="app-inner">
+      <div class="header-row">
+        <div>
+          <h1>Tab Splitter</h1>
+          <div class="subtitle header-extra">
+            Drag each item onto the plates to see exactly who pays what.
+          </div>
+          <div class="chip header-extra" style="margin-top: 4px">
+            <span class="chip-dot"></span>
+            Drop items on multiple plates for shared dishes.
+          </div>
+        </div>
+        <button class="summary-toggle-btn" id="summaryToggle" type="button">
+          <span class="icon">📸</span>
+          <span>Summary-only screenshot view</span>
+        </button>
+      </div>
+
+      <div class="layout">
+        <section class="column left">
+          <div class="column-title">
+            <span>1. Receipt items</span>
+            <small>Drop tickets onto plates ➜</small>
+          </div>
+
+          <form class="inline-form" id="addItemForm">
+            <div class="field">
+              <label for="itemNameInput">Item</label>
+              <input
+                id="itemNameInput"
+                type="text"
+                placeholder="e.g. Margherita Pizza"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="itemPriceInput">Price</label>
+              <input
+                id="itemPriceInput"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 450.00"
+                required
+              />
+            </div>
+            <button class="btn" type="submit">Add item</button>
+          </form>
+
+          <div class="tickets" id="itemsList"></div>
+        </section>
+
+        <section class="column right">
+          <div class="people-section">
+            <div class="column-title">
+              <span>2. People at the table</span>
+              <small>Each person gets an identity colour</small>
+            </div>
+
+            <form class="inline-form" id="addPersonForm">
+              <div class="field">
+                <label for="personNameInput">Name</label>
+                <input
+                  id="personNameInput"
+                  type="text"
+                  placeholder="e.g. Alex"
+                  required
+                />
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <button class="btn" type="submit">Add person</button>
+              </div>
+            </form>
+
+            <div class="people-row" id="peopleList"></div>
+            <div class="person-hint header-extra">
+              Tip: Drag the same ticket onto multiple plates for shared appetisers.
+            </div>
+          </div>
+
+          <div class="meta-section">
+            <div class="column-title">
+              <span>3. Tax, tip & currency</span>
+            </div>
+            <div class="meta-grid">
+              <div class="field">
+                <label for="taxInput">Tax (amount)</label>
+                <input
+                  id="taxInput"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                />
+              </div>
+              <div class="field">
+                <label for="tipInput">Tip (amount)</label>
+                <input
+                  id="tipInput"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                />
+              </div>
+              <div class="field">
+                <label for="currencyInput">Currency symbol</label>
+                <input
+                  id="currencyInput"
+                  type="text"
+                  maxlength="3"
+                  value="₹"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-wrapper">
+            <div class="column-title">
+              <span>4. Summary</span>
+              <small>Designed to fit one phone screenshot</small>
+            </div>
+
+            <div class="summary-card" id="summaryCard"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bottom-hint">
+        <span>
+          🧾 Drag a ticket onto a plate to assign it. Tap a coloured pill on a
+          ticket to unassign. Tap the “×” on a plate to remove a person.
+        </span>
+        <span class="bottom-hint-code">
+          Logic: “Paid” comes from assigned items; tax & tip follow those shares.
+          We then equal-split the total bill and show who settles with whom.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const itemsContainer = document.getElementById("itemsList");
+      const peopleContainer = document.getElementById("peopleList");
+      const summaryCard = document.getElementById("summaryCard");
+
+      const addItemForm = document.getElementById("addItemForm");
+      const itemNameInput = document.getElementById("itemNameInput");
+      const itemPriceInput = document.getElementById("itemPriceInput");
+
+      const addPersonForm = document.getElementById("addPersonForm");
+      const personNameInput = document.getElementById("personNameInput");
+
+      const taxInput = document.getElementById("taxInput");
+      const tipInput = document.getElementById("tipInput");
+      const currencyInput = document.getElementById("currencyInput");
+
+      const summaryToggleBtn = document.getElementById("summaryToggle");
+
+      const colorPalette = [
+        "#39FF14",
+        "#9B5CFF",
+        "#FF2E93",
+        "#00F5D4",
+        "#FFC857",
+        "#FF6B6B",
+        "#4CFFB3",
+      ];
+
+      let colorIndex = 0;
+
+      let people = [
+        { id: "p1", name: "Alex",  color: colorPalette[colorIndex++ % colorPalette.length] },
+        { id: "p2", name: "Blake", color: colorPalette[colorIndex++ % colorPalette.length] },
+        { id: "p3", name: "Casey", color: colorPalette[colorIndex++ % colorPalette.length] },
+      ];
+
+      let items = [];
+
+      let nextPersonId = people.length + 1;
+      let nextItemId = 1;
+
+      function formatMoney(value, currency) {
+        const num = typeof value === "number" ? value : Number(value);
+        if (!isFinite(num)) return currency + "0.00";
+        return currency + num.toFixed(2);
+      }
+
+      function getCurrency() {
+        const c = (currencyInput.value || "").trim();
+        if (!c) return "";
+        return c;
+      }
+
+      function getPersonById(pid) {
+        return people.find((p) => p.id === pid) || null;
+      }
+
+      function addPerson(name) {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const person = {
+          id: "p" + nextPersonId++,
+          name: trimmed,
+          color: colorPalette[colorIndex++ % colorPalette.length],
+        };
+        people.push(person);
+        renderPeople();
+        renderItems();
+        renderSummary();
+      }
+
+      function deletePerson(personId) {
+        people = people.filter((p) => p.id !== personId);
+        items.forEach((item) => {
+          if (item.owners && item.owners.length) {
+            item.owners = item.owners.filter((id) => id !== personId);
+          }
+        });
+        renderPeople();
+        renderItems();
+        renderSummary();
+      }
+
+      function addItem(name, price) {
+        const trimmed = name.trim();
+        const numPrice = Number(price);
+        if (!trimmed || !isFinite(numPrice) || numPrice <= 0) return;
+        const item = {
+          id: "i" + nextItemId++,
+          name: trimmed,
+          price: numPrice,
+          owners: [],
+        };
+        items.push(item);
+        renderItems();
+        renderSummary();
+      }
+
+      function assignItemToPerson(itemId, personId) {
+        const item = items.find((it) => it.id === itemId);
+        if (!item) return;
+        if (!item.owners.includes(personId)) {
+          item.owners.push(personId);
+        }
+        renderItems();
+        renderSummary();
+      }
+
+      function unassignItemFromPerson(itemId, personId) {
+        const item = items.find((it) => it.id === itemId);
+        if (!item) return;
+        item.owners = item.owners.filter((id) => id !== personId);
+        renderItems();
+        renderSummary();
+      }
+
+      function deleteItem(itemId) {
+        items = items.filter((it) => it.id !== itemId);
+        renderItems();
+        renderSummary();
+      }
+
+      // Calculate per-person item totals and proportional tax + tip.
+      function calculateTotals() {
+        const totals = {};
+
+        people.forEach((p) => {
+          totals[p.id] = {
+            person: p,
+            itemsTotal: 0,
+            tax: 0,
+            tip: 0,
+            total: 0,
+          };
+        });
+
+        let totalItemsAssigned = 0;
+
+        items.forEach((item) => {
+          if (!isFinite(item.price) || item.price <= 0) return;
+          if (!item.owners || item.owners.length === 0) return;
+
+          const share = item.price / item.owners.length;
+
+          item.owners.forEach((pid) => {
+            if (totals[pid]) {
+              totals[pid].itemsTotal += share;
+            }
+          });
+
+          totalItemsAssigned += item.price;
+        });
+
+        const tax = Number(taxInput.value) || 0;
+        const tip = Number(tipInput.value) || 0;
+
+        if (totalItemsAssigned > 0) {
+          Object.values(totals).forEach((t) => {
+            const ratio =
+              t.itemsTotal > 0 ? t.itemsTotal / totalItemsAssigned : 0;
+            t.tax = tax * ratio;
+            t.tip = tip * ratio;
+            t.total = t.itemsTotal + t.tax + t.tip;
+          });
+        }
+
+        return { totals, totalItemsAssigned, tax, tip };
+      }
+
+      function renderPeople() {
+        peopleContainer.innerHTML = "";
+
+        if (people.length === 0) {
+          const empty = document.createElement("div");
+          empty.textContent = "Add some friends to the table.";
+          empty.style.fontSize = "0.8rem";
+          empty.style.opacity = "0.7";
+          peopleContainer.appendChild(empty);
+          return;
+        }
+
+        people.forEach((p) => {
+          const plate = document.createElement("div");
+          plate.className = "person-plate";
+          plate.dataset.personId = p.id;
+          plate.style.setProperty("--plate-ring-color", p.color);
+
+          const inner = document.createElement("div");
+          inner.className = "person-inner";
+
+          const nameBadge = document.createElement("div");
+          nameBadge.className = "person-name";
+          nameBadge.textContent = p.name;
+
+          inner.appendChild(nameBadge);
+          plate.appendChild(inner);
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "person-delete-btn";
+          deleteBtn.title = "Remove " + p.name + " from the table";
+          deleteBtn.textContent = "×";
+          deleteBtn.dataset.personId = p.id;
+          plate.appendChild(deleteBtn);
+
+          plate.addEventListener("dragover", handlePlateDragOver);
+          plate.addEventListener("dragenter", handlePlateDragEnter);
+          plate.addEventListener("dragleave", handlePlateDragLeave);
+          plate.addEventListener("drop", handlePlateDrop);
+
+          peopleContainer.appendChild(plate);
+        });
+      }
+
+      function buildTicketColorBandStyles(item) {
+        if (!item.owners || item.owners.length === 0) {
+          return { color: "transparent", multiple: false };
+        }
+        if (item.owners.length === 1) {
+          const p = getPersonById(item.owners[0]);
+          return { color: p ? p.color : "transparent", multiple: false };
+        }
+        let combinedColor = "#ffffff";
+        if (item.owners.length === 2) {
+          const p1 = getPersonById(item.owners[0]);
+          const p2 = getPersonById(item.owners[1]);
+          combinedColor = `linear-gradient(90deg, ${
+            p1 ? p1.color : "#fff"
+          } 0%, ${p2 ? p2.color : "#fff"} 100%)`;
+        } else {
+          const colors = item.owners
+            .map((pid) => {
+              const p = getPersonById(pid);
+              return p ? p.color : null;
+            })
+            .filter(Boolean);
+          if (colors.length) {
+            combinedColor = `conic-gradient(from 0deg, ${colors.join(", ")})`;
+          }
+        }
+        return { color: combinedColor, multiple: true };
+      }
+
+      function renderItems() {
+        itemsContainer.innerHTML = "";
+
+        if (items.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "ticket-empty";
+          empty.textContent =
+            "No items yet. Add receipt lines above, then drag each ticket onto the plates.";
+          itemsContainer.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item) => {
+          const ticket = document.createElement("div");
+          ticket.className = "ticket";
+          ticket.draggable = true;
+          ticket.dataset.itemId = item.id;
+
+          if (item.owners && item.owners.length > 0) {
+            ticket.classList.add("has-owners");
+          }
+
+          const main = document.createElement("div");
+          main.className = "ticket-main";
+          const title = document.createElement("div");
+          title.textContent = item.name;
+          const sub = document.createElement("small");
+          sub.textContent = "Drag onto plate";
+          main.appendChild(title);
+          main.appendChild(sub);
+
+          const priceEl = document.createElement("div");
+          priceEl.className = "ticket-price";
+          priceEl.textContent = formatMoney(item.price, getCurrency());
+
+          const meta = document.createElement("div");
+          meta.className = "ticket-meta";
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.className = "delete-item-btn";
+          deleteBtn.type = "button";
+          deleteBtn.innerHTML = "&times;";
+          deleteBtn.dataset.itemId = item.id;
+          meta.appendChild(deleteBtn);
+
+          const ownersRow = document.createElement("div");
+          ownersRow.className = "owners-row";
+
+          const ownersLabel = document.createElement("div");
+          ownersLabel.className = "owners-label";
+          ownersLabel.textContent = "Assigned to";
+          ownersRow.appendChild(ownersLabel);
+
+          if (!item.owners || item.owners.length === 0) {
+            const none = document.createElement("div");
+            none.style.opacity = "0.6";
+            none.style.fontSize = "0.72rem";
+            none.textContent = "— none yet";
+            ownersRow.appendChild(none);
+          } else {
+            item.owners.forEach((pid) => {
+              const p = getPersonById(pid);
+              if (!p) return;
+              const chip = document.createElement("button");
+              chip.type = "button";
+              chip.className = "owner-chip";
+              chip.dataset.itemId = item.id;
+              chip.dataset.personId = pid;
+              chip.style.setProperty("--chip-color", p.color);
+              chip.title = `Remove ${p.name} from this item`;
+              chip.textContent = p.name;
+              ownersRow.appendChild(chip);
+            });
+          }
+
+          const bandInfo = buildTicketColorBandStyles(item);
+          const band = document.createElement("div");
+          band.className = "ticket-color-band";
+          if (bandInfo.multiple) {
+            band.classList.add("multiple");
+            band.style.borderColor = "transparent";
+            band.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.25)";
+            band.style.backgroundImage = bandInfo.color;
+          } else {
+            band.style.borderColor = bandInfo.color;
+          }
+
+          ticket.appendChild(band);
+          ticket.appendChild(main);
+          ticket.appendChild(priceEl);
+          ticket.appendChild(meta);
+          ticket.appendChild(ownersRow);
+
+          ticket.addEventListener("dragstart", handleTicketDragStart);
+          ticket.addEventListener("dragend", handleTicketDragEnd);
+
+          itemsContainer.appendChild(ticket);
+        });
+      }
+
+      function renderSummary() {
+        const { totals, totalItemsAssigned, tax, tip } = calculateTotals();
+        const currency = getCurrency();
+        const peopleTotals = Object.values(totals);
+
+        let html = `
+          <div class="summary-card-header">
+            <h3>Tab summary</h3>
+            <small>${
+              peopleTotals.length
+                ? "One screenshot, no arguments."
+                : "Add people & items to see the breakdown."
+            }</small>
+          </div>
+        `;
+
+        if (!peopleTotals.length) {
+          html += `
+            <div style="font-size:0.8rem; opacity:0.85; margin-top:4px;">
+              Add at least one person to generate a split.
+            </div>
+          `;
+          summaryCard.innerHTML = html;
+          return;
+        }
+
+        const fullTotal = totalItemsAssigned + tax + tip;
+
+        if (fullTotal <= 0) {
+          html += `
+            <div style="font-size:0.8rem; opacity:0.85; margin-top:4px;">
+              Add at least one item (and optionally tax/tip) to generate a split.
+            </div>
+          `;
+          summaryCard.innerHTML = html;
+          return;
+        }
+
+        const numPeople = peopleTotals.length;
+        const equalShare = fullTotal / numPeople;
+
+        html += `<table class="summary-table">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Paid</th>
+              <th>Tax+tip</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+
+        peopleTotals.forEach((t) => {
+          const combined = t.tax + t.tip;
+
+          html += `
+            <tr>
+              <td>
+                <div class="summary-name-cell">
+                  <span class="summary-color-dot" style="background:${t.person.color};"></span>
+                  <span>${t.person.name}</span>
+                </div>
+              </td>
+              <td>${formatMoney(t.itemsTotal, currency)}</td>
+              <td>${formatMoney(combined, currency)}</td>
+              <td class="summary-total">${formatMoney(t.total, currency)}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+          </tbody>
+        </table>
+        <div class="summary-footer">
+          <div>
+            <strong>Total bill:</strong>
+            ${formatMoney(fullTotal, currency)}
+            <span class="mini-pill">
+              Items ${formatMoney(totalItemsAssigned, currency)} ·
+              Tax ${formatMoney(tax, currency)} ·
+              Tip ${formatMoney(tip, currency)}
+            </span>
+          </div>
+          <div>
+            <strong>Rule:</strong>
+            Everyone’s fair share is ${formatMoney(
+              equalShare,
+              currency
+            )}. “Paid” is items only; “Total” adds proportional tax & tip.
+          </div>
+        </div>
+        `;
+
+        // ===== Equal-split settlement logic =====
+        const positions = peopleTotals.map((t) => {
+          const paid = t.total; // what this person is effectively paying (items + tax+tip share)
+          const net = paid - equalShare; // >0 overpaid, <0 underpaid
+          return {
+            person: t.person,
+            paid,
+            net,
+          };
+        });
+
+        const creditors = [];
+        const debtors = [];
+
+        positions.forEach((p) => {
+          const netRounded = Math.round(p.net * 100) / 100;
+          if (netRounded > 0.005) {
+            creditors.push({ person: p.person, amount: netRounded });
+          } else if (netRounded < -0.005) {
+            debtors.push({ person: p.person, amount: -netRounded });
+          }
+        });
+
+        if (creditors.length || debtors.length) {
+          html += `
+            <div style="margin-top:6px; font-size:0.75rem; line-height:1.4;">
+              <strong>Net positions (equal split):</strong><br/>
+              Each person should effectively pay ${formatMoney(
+                equalShare,
+                currency
+              )}.
+            </div>
+            <ul class="settlement-list">
+          `;
+
+          creditors.forEach((c) => {
+            html += `<li>${c.person.name} should <strong>receive</strong> ${formatMoney(
+              c.amount,
+              currency
+            )} from others combined.</li>`;
+          });
+
+          debtors.forEach((d) => {
+            html += `<li>${d.person.name} should <strong>pay</strong> ${formatMoney(
+              d.amount,
+              currency
+            )} in total to the group.</li>`;
+          });
+
+          html += `</ul>`;
+        }
+
+        // Build pair-wise “who pays whom” using greedy min-cash-flow.
+        const settlements = [];
+        let ci = 0;
+        let di = 0;
+
+        while (ci < creditors.length && di < debtors.length) {
+          const cred = creditors[ci];
+          const debt = debtors[di];
+          const amount = Math.min(cred.amount, debt.amount);
+
+          if (amount > 0.005) {
+            settlements.push({
+              from: debt.person,
+              to: cred.person,
+              amount,
+            });
+          }
+
+          cred.amount -= amount;
+          debt.amount -= amount;
+
+          if (cred.amount <= 0.005) ci++;
+          if (debt.amount <= 0.005) di++;
+        }
+
+        html += `
+          <div style="margin-top:6px; font-size:0.75rem; line-height:1.4;">
+            <strong>Who pays what (to settle):</strong>
+        `;
+
+        if (!settlements.length) {
+          html += `<br/>Everyone is already perfectly settled. 🎉</div>`;
+        } else {
+          html += `<br/>These transfers make everyone end up paying ${formatMoney(
+            equalShare,
+            currency
+          )}:</div>
+            <ul class="settlement-list">
+          `;
+          settlements.forEach((s) => {
+            html += `
+              <li>${s.from.name} pays ${s.to.name} ${formatMoney(
+              s.amount,
+              currency
+            )}</li>
+            `;
+          });
+          html += `</ul>`;
+        }
+
+        summaryCard.innerHTML = html;
+      }
+
+      function handleTicketDragStart(e) {
+        const itemId = e.currentTarget.dataset.itemId;
+        e.dataTransfer.setData("text/plain", itemId);
+        e.dataTransfer.effectAllowed = "copy";
+        e.currentTarget.classList.add("dragging");
+      }
+
+      function handleTicketDragEnd(e) {
+        e.currentTarget.classList.remove("dragging");
+      }
+
+      function handlePlateDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }
+
+      function handlePlateDragEnter(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add("drag-over");
+      }
+
+      function handlePlateDragLeave(e) {
+        e.currentTarget.classList.remove("drag-over");
+      }
+
+      function handlePlateDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove("drag-over");
+        const itemId = e.dataTransfer.getData("text/plain");
+        const personId = e.currentTarget.dataset.personId;
+        if (!itemId || !personId) return;
+        assignItemToPerson(itemId, personId);
+      }
+
+      function handleItemsClick(e) {
+        const target = e.target;
+
+        if (
+          target.classList.contains("delete-item-btn") &&
+          target.dataset.itemId
+        ) {
+          deleteItem(target.dataset.itemId);
+          return;
+        }
+
+        if (
+          target.classList.contains("owner-chip") &&
+          target.dataset.itemId &&
+          target.dataset.personId
+        ) {
+          unassignItemFromPerson(
+            target.dataset.itemId,
+            target.dataset.personId
+          );
+          return;
+        }
+      }
+
+      function handlePeopleClick(e) {
+        const target = e.target;
+        if (
+          target.classList.contains("person-delete-btn") &&
+          target.dataset.personId
+        ) {
+          deletePerson(target.dataset.personId);
+        }
+      }
+
+      addItemForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        addItem(itemNameInput.value, itemPriceInput.value);
+        itemNameInput.value = "";
+        itemPriceInput.value = "";
+        itemNameInput.focus();
+      });
+
+      addPersonForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        addPerson(personNameInput.value);
+        personNameInput.value = "";
+        personNameInput.focus();
+      });
+
+      itemsContainer.addEventListener("click", handleItemsClick);
+      peopleContainer.addEventListener("click", handlePeopleClick);
+
+      [taxInput, tipInput, currencyInput].forEach((input) => {
+        input.addEventListener("input", function () {
+          renderSummary();
+          if (input === currencyInput) {
+            renderItems();
+          }
+        });
+      });
+
+      summaryToggleBtn.addEventListener("click", function () {
+        document.body.classList.toggle("summary-only");
+      });
+
+      // Initial render
+      renderPeople();
+      renderItems();
+      renderSummary();
+    })();
+  </script>
+</body>
+</html>

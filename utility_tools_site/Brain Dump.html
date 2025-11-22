@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Brain Dump – Infinite Doodle Pad</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        sans-serif;
+      background: #e1dfd7;
+      color: #222;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* Top skeuomorphic pencil-case toolbar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      background: linear-gradient(145deg, #f7f2e8, #f0e6d6);
+      box-shadow:
+        0 2px 0 rgba(0, 0, 0, 0.25),
+        0 6px 12px rgba(0, 0, 0, 0.15);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+      z-index: 10;
+    }
+
+    .logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-right: 1.5rem;
+    }
+
+    .logo span {
+      font-size: 1.4rem;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .tool-button,
+    .util-button {
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      padding: 0.25rem 0.7rem;
+      font-size: 0.8rem;
+      background: linear-gradient(145deg, #ffffff, #f0e7db);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.9),
+        0 2px 0 rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      transition: transform 0.06s ease, box-shadow 0.06s ease,
+        background 0.1s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .tool-button:active,
+    .util-button:active {
+      transform: translateY(1px);
+      box-shadow:
+        0 0 0 rgba(255, 255, 255, 0.7),
+        0 1px 0 rgba(0, 0, 0, 0.25);
+    }
+
+    .tool-button.active {
+      background: linear-gradient(145deg, #ffeaa7, #ffd46b);
+      border-color: rgba(0, 0, 0, 0.3);
+    }
+
+    .util-button {
+      font-weight: 500;
+      padding-inline: 0.8rem;
+    }
+
+    .util-button.danger {
+      background: linear-gradient(145deg, #ffe6e3, #ffb9b3);
+    }
+
+    .divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.1);
+      margin-inline: 0.3rem;
+    }
+
+    .swatches {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding-inline: 0.35rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+    }
+
+    .color-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.3);
+      background: var(--swatch-color);
+      cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+      position: relative;
+    }
+
+    .color-swatch.active::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: inherit;
+      border: 2px solid #333;
+    }
+
+    .slider-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      padding-inline: 0.3rem;
+    }
+
+    .slider-label input[type="range"] {
+      accent-color: #f6b93b;
+    }
+
+    /* Infinite-style notebook area */
+    #canvasWrapper {
+      flex: 1;
+      position: relative;
+      overflow: auto;
+      background-color: #fdfbf5;
+      background-image:
+        linear-gradient(
+          to right,
+          rgba(76, 110, 245, 0.12) 1px,
+          transparent 1px
+        ),
+        linear-gradient(
+          to bottom,
+          rgba(76, 110, 245, 0.12) 1px,
+          transparent 1px
+        );
+      background-size: 26px 26px;
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+        inset 0 0 40px rgba(0, 0, 0, 0.06);
+      padding: 2rem;
+    }
+
+    #brainCanvas {
+      background: transparent;
+      display: block;
+      margin: 0 auto;
+      /* big "infinite" sheet */
+      width: 2800px;
+      height: 1800px;
+      box-shadow:
+        0 8px 20px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(0, 0, 0, 0.08);
+      border-radius: 6px;
+    }
+
+    /* Simulated “highlighter block” cursor overlay */
+    #highlighterPreview {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(255, 230, 0, 0.35);
+      border-radius: 6px;
+      mix-blend-mode: multiply;
+      transform: translate(-9999px, -9999px);
+      z-index: 99;
+      display: none;
+    }
+
+    /* Small helper text (optional) */
+    .hint {
+      position: absolute;
+      bottom: 1rem;
+      right: 2.5rem;
+      font-size: 0.7rem;
+      opacity: 0.6;
+      background: rgba(253, 251, 245, 0.85);
+      padding: 0.3rem 0.5rem;
+      border-radius: 999px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    @media (max-width: 768px) {
+      .top-bar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      #canvasWrapper {
+        padding: 0.5rem;
+      }
+
+      #brainCanvas {
+        width: 2000px;
+        height: 1400px;
+      }
+
+      .hint {
+        right: 0.75rem;
+        bottom: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top-bar">
+      <div class="logo">
+        <span>🧠</span> Brain Dump
+      </div>
+
+      <div class="toolbar">
+        <button class="tool-button active" data-tool="pen">
+          ✏️ Pen
+        </button>
+        <button class="tool-button" data-tool="highlighter">
+          🖍️ Highlighter
+        </button>
+        <button class="tool-button" data-tool="eraser">
+          🧽 Eraser
+        </button>
+
+        <div class="divider"></div>
+
+        <div class="swatches">
+          <button
+            class="color-swatch active"
+            data-color="#222222"
+            style="--swatch-color:#222222"
+          ></button>
+          <button
+            class="color-swatch"
+            data-color="#b33939"
+            style="--swatch-color:#b33939"
+          ></button>
+          <button
+            class="color-swatch"
+            data-color="#227093"
+            style="--swatch-color:#227093"
+          ></button>
+          <button
+            class="color-swatch"
+            data-color="#218c74"
+            style="--swatch-color:#218c74"
+          ></button>
+          <button
+            class="color-swatch"
+            data-color="#e58e26"
+            style="--swatch-color:#e58e26"
+          ></button>
+          <button
+            class="color-swatch"
+            data-color="#8e44ad"
+            style="--swatch-color:#8e44ad"
+          ></button>
+        </div>
+
+        <div class="divider"></div>
+
+        <label class="slider-label">
+          Size
+          <input id="sizeSlider" type="range" min="1" max="20" value="4" />
+        </label>
+
+        <div class="divider"></div>
+
+        <button class="util-button danger" id="clearBtn">
+          Clear page
+        </button>
+        <button class="util-button" id="exportBtn">
+          Export PNG
+        </button>
+      </div>
+    </header>
+
+    <div id="canvasWrapper">
+      <canvas id="brainCanvas"></canvas>
+      <div class="hint">
+        Tip: your scribbles auto-save in this browser tab.
+      </div>
+    </div>
+
+    <div id="highlighterPreview"></div>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("brainCanvas");
+      const ctx = canvas.getContext("2d");
+      const wrapper = document.getElementById("canvasWrapper");
+      const highlighterPreview = document.getElementById("highlighterPreview");
+
+      const sizeSlider = document.getElementById("sizeSlider");
+      const clearBtn = document.getElementById("clearBtn");
+      const exportBtn = document.getElementById("exportBtn");
+
+      const toolButtons = document.querySelectorAll(".tool-button");
+      const swatches = document.querySelectorAll(".color-swatch");
+
+      const STORAGE_KEY = "brainDumpCanvas";
+
+      // Big "infinite-ish" worksheet
+      function initCanvasSize() {
+        // Match attributes to CSS size for crisp rendering
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+      initCanvasSize();
+
+      // Center the big sheet within the scrollable area
+      function centerCanvasInWrapper() {
+        wrapper.scrollLeft =
+          (canvas.width - wrapper.clientWidth) / 2 > 0
+            ? (canvas.width - wrapper.clientWidth) / 2
+            : 0;
+        wrapper.scrollTop =
+          (canvas.height - wrapper.clientHeight) / 2 > 0
+            ? (canvas.height - wrapper.clientHeight) / 2
+            : 0;
+      }
+      centerCanvasInWrapper();
+
+      // Drawing state
+      const state = {
+        tool: "pen",
+        color: "#222222",
+        size: parseInt(sizeSlider.value, 10),
+        isDrawing: false,
+        points: []
+      };
+
+      // Apply base stroke style
+      function applyStrokeStyle() {
+        if (state.tool === "eraser") {
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = state.size * 4;
+          ctx.strokeStyle = "rgba(0,0,0,1)";
+        } else if (state.tool === "highlighter") {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 0.6;
+          ctx.lineWidth = state.size * 4;
+          ctx.strokeStyle = "rgba(255,230,0,0.85)";
+        } else {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 1;
+          // Subtle variability in ink width
+          const jitter = (Math.random() - 0.5) * (state.size * 0.2);
+          ctx.lineWidth = state.size + jitter;
+          ctx.strokeStyle = state.color;
+        }
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+      }
+
+      function getPos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+
+        if (evt.touches && evt.touches.length > 0) {
+          clientX = evt.touches[0].clientX;
+          clientY = evt.touches[0].clientY;
+        } else {
+          clientX = evt.clientX;
+          clientY = evt.clientY;
+        }
+
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function startDrawing(evt) {
+        evt.preventDefault();
+        state.isDrawing = true;
+        state.points = [];
+        const pos = getPos(evt);
+        state.points.push(pos);
+
+        // For a single tap, draw a tiny dot
+        ctx.save();
+        applyStrokeStyle();
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, Math.max(0.5, state.size / 2), 0, Math.PI * 2);
+        ctx.fillStyle =
+          state.tool === "highlighter"
+            ? "rgba(255,230,0,0.5)"
+            : state.tool === "eraser"
+            ? "rgba(0,0,0,1)"
+            : state.color;
+        if (state.tool === "eraser") {
+          ctx.globalCompositeOperation = "destination-out";
+        } else {
+          ctx.globalCompositeOperation = "source-over";
+        }
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Quadratic curve smoothing between points
+      function drawSmoothStroke() {
+        const pts = state.points;
+        if (pts.length < 2) return;
+
+        ctx.save();
+        applyStrokeStyle();
+
+        if (pts.length === 2) {
+          // First simple segment
+          const p0 = pts[0];
+          const p1 = pts[1];
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.stroke();
+        } else {
+          const len = pts.length;
+          const p0 = pts[len - 3];
+          const p1 = pts[len - 2];
+          const p2 = pts[len - 1];
+
+          const cpX = p1.x;
+          const cpY = p1.y;
+          const startX = (p0.x + p1.x) / 2;
+          const startY = (p0.y + p1.y) / 2;
+          const endX = (p1.x + p2.x) / 2;
+          const endY = (p1.y + p2.y) / 2;
+
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function moveDrawing(evt) {
+        if (!state.isDrawing) return;
+        evt.preventDefault();
+        const pos = getPos(evt);
+        state.points.push(pos);
+        drawSmoothStroke();
+      }
+
+      function stopDrawing(evt) {
+        if (!state.isDrawing) return;
+        evt && evt.preventDefault();
+        state.isDrawing = false;
+        state.points = [];
+      }
+
+      // Tool switching
+      toolButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          toolButtons.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          state.tool = btn.dataset.tool;
+          updateHighlighterPreviewVisibility();
+        });
+      });
+
+      // Color swatches
+      swatches.forEach((sw) => {
+        sw.addEventListener("click", () => {
+          swatches.forEach((s) => s.classList.remove("active"));
+          sw.classList.add("active");
+          state.color = sw.dataset.color;
+        });
+      });
+
+      // Size slider
+      sizeSlider.addEventListener("input", (e) => {
+        state.size = parseInt(e.target.value, 10);
+      });
+
+      // Clear canvas
+      clearBtn.addEventListener("click", () => {
+        const yes = confirm(
+          "Clear the page? This cannot be undone (but future doodles will still auto-save)."
+        );
+        if (!yes) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+          /* ignore */
+        }
+      });
+
+      // Export PNG
+      exportBtn.addEventListener("click", () => {
+        const data = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = data;
+        link.download = "brain-dump.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+
+      // Highlighter preview block that follows cursor
+      function updateHighlighterPreviewVisibility() {
+        if (state.tool === "highlighter") {
+          highlighterPreview.style.display = "block";
+        } else {
+          highlighterPreview.style.display = "none";
+        }
+      }
+
+      document.addEventListener("mousemove", (e) => {
+        if (state.tool !== "highlighter") return;
+        const base = state.size * 4;
+        const width = base * 3; // broad block
+        const height = base;
+        highlighterPreview.style.width = width + "px";
+        highlighterPreview.style.height = height + "px";
+        highlighterPreview.style.transform = `translate(${
+          e.clientX - width / 2
+        }px, ${e.clientY - height / 2}px)`;
+      });
+
+      // Auto save on beforeunload using DataURL + localStorage
+      window.addEventListener("beforeunload", () => {
+        try {
+          const data = canvas.toDataURL("image/png");
+          localStorage.setItem(STORAGE_KEY, data);
+        } catch (e) {
+          // storage might be full or disabled; ignore gracefully
+        }
+      });
+
+      // Restore from storage on load
+      function restoreFromStorage() {
+        try {
+          const data = localStorage.getItem(STORAGE_KEY);
+          if (!data) return;
+          const img = new Image();
+          img.onload = function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          };
+          img.src = data;
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      restoreFromStorage();
+
+      // Mouse events
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", moveDrawing);
+      window.addEventListener("mouseup", stopDrawing);
+
+      // Touch events
+      canvas.addEventListener(
+        "touchstart",
+        (e) => {
+          startDrawing(e);
+        },
+        { passive: false }
+      );
+      canvas.addEventListener(
+        "touchmove",
+        (e) => {
+          moveDrawing(e);
+        },
+        { passive: false }
+      );
+      window.addEventListener(
+        "touchend",
+        (e) => {
+          stopDrawing(e);
+        },
+        { passive: false }
+      );
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Focus Flow – Ambient Noise Mixer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Reset & base */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #020617, #020617 40%, #030712 100%);
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Aurora background */
+    .aurora {
+      position: fixed;
+      inset: -20%;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(56,189,248,0.32), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(129,140,248,0.3), transparent 55%),
+        radial-gradient(circle at 0% 100%, rgba(45,212,191,0.25), transparent 55%),
+        radial-gradient(circle at 80% 120%, rgba(244,114,182,0.4), transparent 60%);
+      filter: blur(40px);
+      opacity: 0.85;
+      animation: auroraShift 26s ease-in-out infinite alternate;
+      z-index: 0;
+    }
+
+    @keyframes auroraShift {
+      0%   { transform: translate3d(-4%, -2%, 0) scale(1.05); }
+      50%  { transform: translate3d(3%, 4%, 0) scale(1.12); }
+      100% { transform: translate3d(-2%, 6%, 0) scale(1.08); }
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: min(960px, 100% - 32px);
+      padding: 24px;
+    }
+
+    .card {
+      backdrop-filter: blur(28px) saturate(1.3);
+      background: radial-gradient(circle at top left, rgba(15,23,42,0.92), rgba(15,23,42,0.78));
+      border-radius: 24px;
+      border: 1px solid rgba(148,163,184,0.45);
+      box-shadow:
+        0 24px 44px rgba(15,23,42,0.9),
+        0 0 0 1px rgba(15,23,42,0.8);
+      padding: 28px clamp(24px, 4vw, 36px) 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    header h1 {
+      font-size: clamp(1.9rem, 3vw, 2.25rem);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #f9fafb;
+    }
+
+    .tagline {
+      font-size: 0.95rem;
+      color: #cbd5f5;
+      max-width: 34rem;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+    .pill {
+      border-radius: 999px;
+      padding: 3px 10px;
+      border: 1px solid rgba(148,163,184,0.6);
+      background: radial-gradient(circle at top, rgba(148,163,184,0.2), transparent 70%);
+    }
+
+    .mixer-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(18px, 3vw, 28px);
+      margin-top: 10px;
+    }
+
+    .channel {
+      --intensity: 0;
+      position: relative;
+      padding: 16px 14px 18px;
+      border-radius: 20px;
+      background: radial-gradient(circle at top, rgba(15,23,42,0.9), rgba(15,23,42,0.7));
+      border: 1px solid rgba(148,163,184,0.35);
+      box-shadow: 0 16px 30px rgba(15,23,42,0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        border-color 0.25s ease;
+    }
+
+    .channel:hover {
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 24px 44px rgba(15,23,42,0.9);
+      border-color: rgba(191,219,254,0.7);
+    }
+
+    .icon-wrapper {
+      width: 96px;
+      height: 96px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 30% 0%, rgba(248,250,252,0.85), rgba(148,163,184,0.16)),
+        radial-gradient(circle at 0% 140%, rgba(56,189,248,0.35), transparent 60%);
+      box-shadow:
+        0 0 0 1px rgba(148,163,184,0.7),
+        0 18px 36px rgba(15,23,42,0.95);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .icon-wrapper::before {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(59,130,246,0.35), transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(236,72,153,0.4), transparent 55%);
+      mix-blend-mode: screen;
+      opacity: calc(0.2 + var(--intensity) * 0.5);
+      transform: translate3d(0,0,0);
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    .icon {
+      font-size: 2.6rem;
+      filter: drop-shadow(0 0 calc(5px + 12px * var(--intensity)) rgba(248,250,252,0.9));
+      opacity: calc(0.45 + var(--intensity) * 0.55);
+      transition: opacity 0.3s ease, filter 0.3s ease, transform 0.3s ease;
+    }
+
+    .channel.active .icon {
+      transform: scale(1.04);
+    }
+
+    .channel.active .icon-wrapper {
+      box-shadow:
+        0 0 0 1px rgba(191,219,254,0.95),
+        0 0 calc(22px + 14px * var(--intensity)) rgba(191,219,254,0.75),
+        0 22px 52px rgba(15,23,42,1);
+      animation: pulse 2.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: translateZ(0) scale(1); }
+      50%      { transform: translateZ(0) scale(1.06); }
+    }
+
+    .channel-name {
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+    }
+
+    .channel-sub {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    /* Sliders */
+    .slider-shell {
+      width: 100%;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slider-row {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .slider-label-row {
+      width: 90%;
+      max-width: 220px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.75rem;
+    }
+
+    .slider-label {
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .slider-value {
+      font-size: 0.75rem;
+      color: #cbd5f5;
+    }
+
+    .range-wrap {
+      position: relative;
+      width: 90%;
+      max-width: 220px;
+      padding: 4px 0 2px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 26px;
+      background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 10px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 0% 50%, rgba(148,163,184,0.6), transparent 45%),
+        radial-gradient(circle at 100% 50%, rgba(59,130,246,0.7), transparent 45%),
+        linear-gradient(
+          90deg,
+          rgba(148,163,184,0.26),
+          rgba(52,211,153,0.6),
+          rgba(59,130,246,0.8),
+          rgba(236,72,153,0.8)
+        );
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,1),
+        0 0 18px rgba(15,23,42,0.9);
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 10px;
+      border-radius: 999px;
+      background:
+        linear-gradient(
+          90deg,
+          rgba(148,163,184,0.26),
+          rgba(52,211,153,0.6),
+          rgba(59,130,246,0.8),
+          rgba(236,72,153,0.8)
+        );
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,1),
+        0 0 18px rgba(15,23,42,0.9);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #f9fafb;
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,1),
+        0 3px 8px rgba(15,23,42,0.65);
+      margin-top: -4px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="range"]:active::-webkit-slider-thumb {
+      transform: scale(1.12);
+      box-shadow:
+        0 0 0 2px rgba(191,219,254,0.85),
+        0 3px 14px rgba(15,23,42,0.9);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: none;
+      background: #f9fafb;
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,1),
+        0 3px 8px rgba(15,23,42,0.65);
+      cursor: pointer;
+    }
+
+    .bottom-row {
+      margin-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 18px;
+      justify-content: space-between;
+    }
+
+    .left-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: 1px solid rgba(191,219,254,0.8);
+      background: radial-gradient(circle at top, rgba(59,130,246,0.8), rgba(37,99,235,0.9));
+      color: #f9fafb;
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow:
+        0 12px 24px rgba(37,99,235,0.75),
+        0 0 0 1px rgba(15,23,42,1);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease;
+    }
+
+    .btn span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #bbf7d0;
+      box-shadow: 0 0 8px rgba(74,222,128,1);
+    }
+
+    .btn.secondary {
+      background: radial-gradient(circle at top, rgba(15,23,42,0.9), rgba(15,23,42,0.75));
+      border-color: rgba(148,163,184,0.85);
+      box-shadow:
+        0 10px 20px rgba(15,23,42,0.95),
+        0 0 0 1px rgba(15,23,42,1);
+      color: #e5e7eb;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 18px 32px rgba(30,64,175,0.9),
+        0 0 0 1px rgba(191,219,254,0.9);
+    }
+
+    .btn.secondary:hover {
+      box-shadow:
+        0 14px 24px rgba(15,23,42,1),
+        0 0 0 1px rgba(148,163,184,1);
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow:
+        0 8px 12px rgba(15,23,42,0.9),
+        0 0 0 1px rgba(15,23,42,1);
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      max-width: 260px;
+    }
+
+    footer {
+      margin-top: 14px;
+      font-size: 0.72rem;
+      color: #6b7280;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        align-items: stretch;
+      }
+      .shell {
+        padding: 16px;
+        width: 100%;
+      }
+      .card {
+        padding: 18px 18px 20px;
+      }
+      .mixer-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .bottom-row {
+        align-items: flex-start;
+      }
+      .hint {
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <main class="shell">
+    <section class="card" aria-label="Focus Flow ambient noise mixer">
+      <header>
+        <h1>Focus Flow</h1>
+        <p class="tagline">
+          Layer white noise, rain, and warm ambience into a private soundscape that lives entirely in your browser.
+        </p>
+        <div class="meta">
+          <span class="pill">Local · Offline-ready · No tracking</span>
+        </div>
+      </header>
+
+      <div class="mixer-grid">
+        <!-- White / wide-band noise -->
+        <div class="channel" data-channel="white">
+          <div class="icon-wrapper">
+            <span class="icon" aria-hidden="true">🌫️</span>
+          </div>
+          <p class="channel-name">Noise</p>
+          <p class="channel-sub">Wide-band hush to blanket distractions.</p>
+          <div class="slider-shell">
+            <!-- Volume -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Volume</span>
+                <span class="slider-value" data-readout="white">40%</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="40"
+                  class="volume-slider"
+                  aria-label="White noise volume"
+                />
+              </div>
+            </div>
+            <!-- Speed -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Speed</span>
+                <span class="slider-value" data-speed-readout="white">1.0x</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="50"
+                  class="speed-slider"
+                  aria-label="White noise speed"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rain (pink-ish noise) -->
+        <div class="channel" data-channel="rain">
+          <div class="icon-wrapper">
+            <span class="icon" aria-hidden="true">🌧️</span>
+          </div>
+          <p class="channel-name">Rain</p>
+          <p class="channel-sub">Soft mid-frequency drizzle for focus.</p>
+          <div class="slider-shell">
+            <!-- Volume -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Volume</span>
+                <span class="slider-value" data-readout="rain">60%</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="60"
+                  class="volume-slider"
+                  aria-label="Rain layer volume"
+                />
+              </div>
+            </div>
+            <!-- Speed -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Speed</span>
+                <span class="slider-value" data-speed-readout="rain">1.0x</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="55"
+                  class="speed-slider"
+                  aria-label="Rain layer speed"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fire / warm ambience (brown noise) -->
+        <div class="channel" data-channel="fire">
+          <div class="icon-wrapper">
+            <span class="icon" aria-hidden="true">🔥</span>
+          </div>
+          <p class="channel-name">Embers</p>
+          <p class="channel-sub">Warm, low rumble like a distant fire.</p>
+          <div class="slider-shell">
+            <!-- Volume -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Volume</span>
+                <span class="slider-value" data-readout="fire">20%</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="20"
+                  class="volume-slider"
+                  aria-label="Fire ambience volume"
+                />
+              </div>
+            </div>
+            <!-- Speed -->
+            <div class="slider-row">
+              <div class="slider-label-row">
+                <span class="slider-label">Speed</span>
+                <span class="slider-value" data-speed-readout="fire">0.8x</span>
+              </div>
+              <div class="range-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="40"
+                  class="speed-slider"
+                  aria-label="Fire ambience speed"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-row">
+        <div class="left-actions">
+          <button id="powerToggle" class="btn">
+            <span class="dot"></span>
+            <span class="label">Start Flow</span>
+          </button>
+          <button id="muteAll" class="btn secondary">
+            Mute all
+          </button>
+        </div>
+        <p class="hint">
+          Move any slider or tap <strong>Start Flow</strong> to unlock audio. Everything runs locally with the Web&nbsp;Audio&nbsp;API.
+        </p>
+      </div>
+
+      <footer>
+        Tip: dial rain up and noise down when your room is already quiet; increase noise in busier spaces.
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      let audioCtx = null;
+      let masterGain = null;
+      const channels = {};
+      let isInitialized = false;
+      let isPowered = false;
+
+      const powerBtn = document.getElementById("powerToggle");
+      const muteBtn = document.getElementById("muteAll");
+      const sliderEls = document.querySelectorAll(".volume-slider");
+      const speedSliderEls = document.querySelectorAll(".speed-slider");
+
+      function ensureAudioContext() {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) {
+            alert("Your browser does not support the Web Audio API used by Focus Flow.");
+            return null;
+          }
+          audioCtx = new AudioContextClass();
+          masterGain = audioCtx.createGain();
+          masterGain.gain.value = 0.0;
+          masterGain.connect(audioCtx.destination);
+
+          // Three synthesized layers
+          createNoiseChannel("white", "white");
+          createNoiseChannel("rain", "pink");
+          createNoiseChannel("fire", "brown");
+
+          isInitialized = true;
+
+          // Apply starting slider values to gains
+          sliderEls.forEach((slider) => {
+            const channelId = slider.closest(".channel").dataset.channel;
+            const value = Number(slider.value) || 0;
+            setChannelLevel(channelId, value);
+            updateChannelVisual(channelId, value);
+          });
+
+          // Apply starting speed values to filters
+          speedSliderEls.forEach((slider) => {
+            const channelId = slider.closest(".channel").dataset.channel;
+            const value = Number(slider.value) || 50;
+            setChannelSpeed(channelId, value);
+            updateChannelSpeedVisual(channelId, value);
+          });
+        }
+
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function createNoiseChannel(id, type) {
+        if (!audioCtx || channels[id]) return;
+
+        const bufferSize = 4096;
+        const node = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+        // Filter to shape "speed"/texture (lowpass)
+        const filterNode = audioCtx.createBiquadFilter();
+        filterNode.type = "lowpass";
+        filterNode.frequency.value = 4000;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.0;
+
+        node.connect(filterNode);
+        filterNode.connect(gainNode);
+        gainNode.connect(masterGain);
+
+        let pink_b0 = 0, pink_b1 = 0, pink_b2 = 0, pink_b3 = 0, pink_b4 = 0, pink_b5 = 0, pink_b6 = 0;
+        let brownLastOut = 0;
+
+        node.onaudioprocess = (e) => {
+          const output = e.outputBuffer.getChannelData(0);
+
+          for (let i = 0; i < output.length; i++) {
+            const white = Math.random() * 2 - 1;
+            let sample;
+
+            if (type === "white") {
+              sample = white;
+            } else if (type === "pink") {
+              // Paul Kellet pink noise approximation
+              pink_b0 = 0.99886 * pink_b0 + white * 0.0555179;
+              pink_b1 = 0.99332 * pink_b1 + white * 0.0750759;
+              pink_b2 = 0.96900 * pink_b2 + white * 0.1538520;
+              pink_b3 = 0.86650 * pink_b3 + white * 0.3104856;
+              pink_b4 = 0.55000 * pink_b4 + white * 0.5329522;
+              pink_b5 = -0.7616 * pink_b5 - white * 0.0168980;
+              pink_b6 = white * 0.115926;
+
+              sample =
+                pink_b0 +
+                pink_b1 +
+                pink_b2 +
+                pink_b3 +
+                pink_b4 +
+                pink_b5 +
+                pink_b6 +
+                white * 0.5362;
+
+              sample *= 0.11; // gain compensation
+            } else if (type === "brown") {
+              const brownWhite = white;
+              sample = (brownLastOut + 0.02 * brownWhite) / 1.02;
+              brownLastOut = sample;
+              sample *= 3.5;
+            } else {
+              sample = white;
+            }
+
+            output[i] = sample;
+          }
+        };
+
+        channels[id] = { node, gainNode, filterNode, type };
+      }
+
+      function setChannelLevel(id, sliderValue) {
+        if (!channels[id] || !audioCtx) return;
+
+        const raw = clamp(sliderValue, 0, 100);
+        const normalized = raw / 100;
+        const shaped = Math.pow(normalized, 1.5); // slightly exponential
+
+        const gainNode = channels[id].gainNode;
+        gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        gainNode.gain.setTargetAtTime(shaped, audioCtx.currentTime, 0.01);
+      }
+
+      function updateChannelVisual(id, sliderValue) {
+        const channelEl = document.querySelector('.channel[data-channel="' + id + '"]');
+        const readoutEl = document.querySelector('[data-readout="' + id + '"]');
+        if (!channelEl) return;
+
+        const raw = clamp(sliderValue, 0, 100);
+        const intensity = raw / 100;
+
+        channelEl.style.setProperty("--intensity", intensity.toString());
+        if (intensity > 0.01 && isPowered) {
+          channelEl.classList.add("active");
+        } else {
+          channelEl.classList.remove("active");
+        }
+
+        if (readoutEl) {
+          readoutEl.textContent = raw.toFixed(0) + "%";
+        }
+      }
+
+      function setChannelSpeed(id, sliderValue) {
+        if (!channels[id] || !audioCtx) return;
+        const filter = channels[id].filterNode;
+        if (!filter) return;
+
+        const raw = clamp(sliderValue, 0, 100);
+        const norm = raw / 100;
+
+        // Map [0,1] -> [0.4x, 2.0x] for readout
+        const minFactor = 0.4;
+        const maxFactor = 2.0;
+        const factor = minFactor + norm * (maxFactor - minFactor);
+
+        // Map to a perceptually nice lowpass frequency (log scale)
+        const minFreq = 300;   // slow, muffled
+        const maxFreq = 11000; // fast, bright
+        const freq = minFreq * Math.pow(maxFreq / minFreq, norm);
+
+        filter.frequency.cancelScheduledValues(audioCtx.currentTime);
+        filter.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+
+        channels[id].speedFactor = factor;
+      }
+
+      function updateChannelSpeedVisual(id, sliderValue) {
+        const readoutEl = document.querySelector('[data-speed-readout="' + id + '"]');
+        if (!readoutEl) return;
+
+        const raw = clamp(sliderValue, 0, 100);
+        const norm = raw / 100;
+        const minFactor = 0.4;
+        const maxFactor = 2.0;
+        const factor = minFactor + norm * (maxFactor - minFactor);
+
+        readoutEl.textContent = factor.toFixed(1) + "x";
+      }
+
+      function setMasterPower(on) {
+        if (!audioCtx || !masterGain) return;
+        isPowered = on;
+
+        const target = on ? 0.9 : 0.0;
+        masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+        masterGain.gain.setTargetAtTime(target, audioCtx.currentTime, 0.03);
+
+        powerBtn.querySelector(".label").textContent = on ? "Pause Flow" : "Start Flow";
+        powerBtn.classList.toggle("secondary", on);
+        if (on) {
+          powerBtn.classList.remove("secondary");
+        }
+
+        document.querySelectorAll(".channel").forEach((channelEl) => {
+          const slider = channelEl.querySelector(".volume-slider");
+          const value = slider ? Number(slider.value) || 0 : 0;
+          updateChannelVisual(channelEl.dataset.channel, value);
+        });
+      }
+
+      function togglePower() {
+        if (!ensureAudioContext()) return;
+        setMasterPower(!isPowered);
+      }
+
+      function muteAll() {
+        if (!ensureAudioContext()) return;
+
+        sliderEls.forEach((slider) => {
+          slider.value = 0;
+          const channelId = slider.closest(".channel").dataset.channel;
+          setChannelLevel(channelId, 0);
+          updateChannelVisual(channelId, 0);
+        });
+
+        setMasterPower(false);
+      }
+
+      function clamp(v, min, max) {
+        v = Number(v) || 0;
+        return Math.min(max, Math.max(min, v));
+      }
+
+      // Attach events
+      powerBtn.addEventListener("click", () => {
+        ensureAudioContext();
+        togglePower();
+      });
+
+      muteBtn.addEventListener("click", () => {
+        ensureAudioContext();
+        muteAll();
+      });
+
+      // Volume sliders
+      sliderEls.forEach((slider) => {
+        const channelId = slider.closest(".channel").dataset.channel;
+        const startValue = Number(slider.value) || 0;
+        updateChannelVisual(channelId, startValue);
+
+        const handleSliderChange = (event) => {
+          ensureAudioContext();
+          const value = Number(event.target.value) || 0;
+          setChannelLevel(channelId, value);
+          updateChannelVisual(channelId, value);
+          if (!isPowered) {
+            setMasterPower(true);
+          }
+        };
+
+        slider.addEventListener("input", handleSliderChange);
+        slider.addEventListener("change", handleSliderChange);
+        slider.addEventListener("mousedown", ensureAudioContext, { once: true });
+        slider.addEventListener("touchstart", ensureAudioContext, { once: true });
+      });
+
+      // Speed sliders
+      speedSliderEls.forEach((slider) => {
+        const channelId = slider.closest(".channel").dataset.channel;
+        const startValue = Number(slider.value) || 50;
+        updateChannelSpeedVisual(channelId, startValue);
+
+        const handleSpeedChange = (event) => {
+          ensureAudioContext();
+          const value = Number(event.target.value) || 0;
+          setChannelSpeed(channelId, value);
+          updateChannelSpeedVisual(channelId, value);
+        };
+
+        slider.addEventListener("input", handleSpeedChange);
+        slider.addEventListener("change", handleSpeedChange);
+        slider.addEventListener("mousedown", ensureAudioContext, { once: true });
+        slider.addEventListener("touchstart", ensureAudioContext, { once: true });
+      });
+
+      // Be nice to laptop fans / mobile battery
+      document.addEventListener("visibilitychange", () => {
+        if (!audioCtx) return;
+        if (document.visibilityState === "hidden") {
+          audioCtx.suspend();
+        } else if (isPowered) {
+          audioCtx.resume();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
